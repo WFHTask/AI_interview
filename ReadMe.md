@@ -66,8 +66,8 @@ HR 配置岗位 JD → 生成面试链接 → 候选人访问链接
 
 | 引擎 | 模型 | 职责 | 特点 |
 |------|------|------|------|
-| **面试官** | `gemini-2.0-flash` | 主持对话、STAR 追问 | 流式响应、低延迟 |
-| **判官** | `gemini-2.5-pro-preview` | 评估打分、决策定级 | 深度推理、结构化输出 |
+| **面试官** | Gemini 3.0 Flash | 主持对话、STAR 追问 | 流式响应、低延迟 |
+| **判官** | Gemini 3.0 Pro | 评估打分、决策定级 | 深度推理、结构化输出 |
 
 ### 2. STAR 追问法
 
@@ -190,8 +190,8 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 # 可选
 GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
-INTERVIEWER_MODEL=gemini-2.0-flash
-EVALUATOR_MODEL=gemini-2.5-pro-preview-06-05
+INTERVIEWER_MODEL=gemini-3.0-flash
+EVALUATOR_MODEL=gemini-3.0-pro
 FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
 HR_USERNAME=admin
 HR_PASSWORD=your_secure_password
