@@ -1,0 +1,145 @@
+# ============================================
+# VoiVerse AI Interview System - .gitignore
+# ============================================
+
+# ===================
+# Environment & Secrets
+# ===================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.toml
+
+# ===================
+# Python
+# ===================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.conda/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Cython debug symbols
+cython_debug/
+
+# ===================
+# IDE & Editors
+# ===================
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+.spyderproject
+.spyproject
+
+# ===================
+# Testing
+# ===================
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# ===================
+# Streamlit
+# ===================
+.streamlit/secrets.toml
+
+# ===================
+# Data Files
+# ===================
+data/interviews/
+data/job_configs/
+!data/interviews/.gitkeep
+!data/job_configs/.gitkeep
+
+# ===================
+# Logs
+# ===================
+*.log
+logs/
+log/
+
+# ===================
+# OS Files
+# ===================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ===================
+# Temporary Files
+# ===================
+*.tmp
+*.temp
+*.bak
+*.backup
+tmp/
+temp/
+
+# ===================
+# Build & Distribution
+# ===================
+node_modules/
+*.min.js
+*.min.css
+
+# ===================
+# Jupyter Notebooks
+# ===================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ===================
+# Claude Code
+# ===================
+.claude/
+CLAUDE.md

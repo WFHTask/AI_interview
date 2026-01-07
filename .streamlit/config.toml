@@ -1,0 +1,18 @@
+[server]
+enableStaticServing = true
+maxUploadSize = 10
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+# Color scheme: Deep Teal (避免紫色 AI 通用风格)
+primaryColor = "#0D9488"
+backgroundColor = "#F8FAFC"
+secondaryBackgroundColor = "#E2E8F0"
+textColor = "#1E293B"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = false

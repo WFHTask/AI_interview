@@ -1,0 +1,20 @@
+# Web Framework
+streamlit>=1.28.0
+
+# HTTP Client
+requests>=2.31.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Data Validation
+pydantic>=2.0.0
+
+# SSE Parsing (for Gemini streaming)
+sseclient-py>=1.8.0
+
+# Datetime handling
+python-dateutil>=2.8.2
+
+# JSON Schema validation
+jsonschema>=4.20.0
