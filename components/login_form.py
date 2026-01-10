@@ -35,7 +35,7 @@ def render_login_page(on_login: Callable[[str, str], bool]) -> bool:
             {target_icon}
         </div>
         <h1 style="margin: 0; color: #134E4A; font-size: 2rem;">VoiVerse AI</h1>
-        <p style="color: #64748B; margin: 0.5rem 0 0 0;">HR \u7ba1\u7406\u540e\u53f0</p>
+        <p style="color: #64748B; margin: 0.5rem 0 0 0;">HR 管理后台</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -90,7 +90,7 @@ def render_login_page(on_login: Callable[[str, str], bool]) -> bool:
 
                 if on_login(username, password):
                     st.session_state.login_submitting = False
-                    st.success("登录成功!")
+                    st.toast("登录成功!", icon="✓")
                     st.rerun()
                     return True
                 else:
@@ -108,7 +108,7 @@ def render_login_page(on_login: Callable[[str, str], bool]) -> bool:
             color: #94A3B8;
             font-size: 0.75rem;
         ">
-            <p style="margin: 0;">\u5b89\u5168\u63d0\u793a: \u8bf7\u52ff\u5728\u516c\u5171\u7f51\u7edc\u4e0a\u767b\u5f55</p>
+            <p style="margin: 0;">安全提示: 请勿在公共网络上登录</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -122,7 +122,7 @@ def render_logout_button() -> bool:
     Returns:
         True if logout was clicked
     """
-    if st.sidebar.button("\u9000\u51fa\u767b\u5f55", use_container_width=True, key="logout_btn"):
+    if st.sidebar.button("退出登录", use_container_width=True, key="logout_btn"):
         return True
     return False
 

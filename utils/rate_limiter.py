@@ -14,6 +14,14 @@ class RateLimiter:
     """
     Thread-safe rate limiter using sliding window algorithm.
 
+    IMPORTANT: This is an in-memory rate limiter. In multi-process deployments
+    (e.g., Gunicorn with multiple workers), each process maintains its own
+    rate limit state. The effective rate limit becomes:
+        actual_limit = configured_limit × number_of_workers
+
+    For strict rate limiting in multi-process environments, consider using
+    Redis-based rate limiting instead.
+
     Usage:
         limiter = RateLimiter(max_requests=10, window_seconds=60)
         if limiter.is_allowed("user_123"):

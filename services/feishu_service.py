@@ -5,6 +5,7 @@ Sends interview results to Feishu group via webhook.
 Supports both normal and urgent (S-tier) notifications.
 """
 import json
+import re
 import requests
 from typing import Optional
 from datetime import datetime
@@ -13,9 +14,41 @@ from config.settings import Settings
 from models.schemas import FeishuNotification, DecisionTier
 
 
+# Allowed webhook domains for security (prevent SSRF)
+ALLOWED_WEBHOOK_DOMAINS = [
+    "open.feishu.cn",
+    "open.larksuite.com",  # International version
+]
+
+
 class FeishuServiceError(Exception):
     """Custom exception for Feishu service errors"""
     pass
+
+
+def is_valid_feishu_webhook(url: str) -> bool:
+    """
+    Validate that URL is a legitimate Feishu webhook.
+
+    Args:
+        url: Webhook URL to validate
+
+    Returns:
+        True if URL is valid Feishu webhook
+    """
+    if not url:
+        return False
+
+    # Must be HTTPS
+    if not url.startswith("https://"):
+        return False
+
+    # Check domain whitelist
+    for domain in ALLOWED_WEBHOOK_DOMAINS:
+        if url.startswith(f"https://{domain}/"):
+            return True
+
+    return False
 
 
 class FeishuService:
@@ -235,6 +268,10 @@ class FeishuService:
         if not self.webhook_url:
             raise FeishuServiceError("Feishu webhook URL not configured")
 
+        # Security: Validate webhook URL to prevent SSRF
+        if not is_valid_feishu_webhook(self.webhook_url):
+            raise FeishuServiceError("Invalid Feishu webhook URL. Only open.feishu.cn and open.larksuite.com are allowed.")
+
         # Build message
         if use_card:
             payload = self._build_card_message(notification)
@@ -281,10 +318,10 @@ class FeishuService:
             return self.send_notification(notification)
 
         # For S-tier, send card + follow-up text
-        self.send_notification(notification, use_card=True)
+        card_sent = self.send_notification(notification, use_card=True)
 
         # Send additional alert text
-        if additional_message:
+        if additional_message and card_sent:
             alert_payload = {
                 "msg_type": "text",
                 "content": {
@@ -293,16 +330,21 @@ class FeishuService:
             }
 
             try:
-                requests.post(
+                response = requests.post(
                     self.webhook_url,
                     json=alert_payload,
                     headers={"Content-Type": "application/json"},
                     timeout=self.timeout
                 )
-            except:
-                pass  # Non-critical, ignore errors
+                # Log but don't fail if additional message fails
+                if response.status_code != 200:
+                    import logging
+                    logging.warning(f"Failed to send S-tier additional alert: {response.status_code}")
+            except Exception as e:
+                import logging
+                logging.warning(f"Failed to send S-tier additional alert: {e}")
 
-        return True
+        return card_sent
 
     def test_connection(self) -> bool:
         """

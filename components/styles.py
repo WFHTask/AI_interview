@@ -6,6 +6,12 @@ Design Principles:
 - DM Sans + Source Sans Pro fonts
 - Professional, memorable, non-generic design
 - Lucide-style SVG icons (NO emojis)
+
+Browser Compatibility:
+- CSS :has() selector is used for chat message styling
+- Supported in Chrome 105+, Safari 15.4+, Firefox 121+, Edge 105+
+- For older browsers, chat message styling may degrade gracefully
+- Minimum recommended: Chrome 105+ (Aug 2022) or equivalent
 """
 
 # =============================================================================
@@ -73,6 +79,15 @@ ICONS = {
     "arrow-right": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>''',
 
     "award": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg>''',
+
+    # Additional icons
+    "building": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>''',
+
+    "alert-circle": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>''',
+
+    "mic": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>''',
+
+    "shield": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>''',
 }
 
 
@@ -223,6 +238,24 @@ footer { visibility: hidden; }
     background: linear-gradient(180deg, var(--primary-darker) 0%, var(--primary-dark) 100%);
 }
 
+[data-testid="stSidebar"] > div:first-child {
+    padding-top: 1rem !important;
+}
+
+/* Sidebar sections styling */
+[data-testid="stSidebar"] [data-testid="stExpander"] {
+    border: none !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-radius: 12px !important;
+    margin-bottom: 0.5rem !important;
+    overflow: hidden !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stExpander"] summary {
+    padding: 0.75rem 1rem !important;
+    font-weight: 600 !important;
+}
+
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
     color: #F0FDFA;
 }
@@ -231,10 +264,18 @@ footer { visibility: hidden; }
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 {
     color: #FFFFFF !important;
+    font-size: 0.9rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    margin-top: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
+    opacity: 0.9;
 }
 
 [data-testid="stSidebar"] label {
     color: #CCFBF1 !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
 }
 
 [data-testid="stSidebar"] .stTextInput > div > div > input,
@@ -242,6 +283,8 @@ footer { visibility: hidden; }
     background-color: #FFFFFF !important;
     border-color: rgba(255, 255, 255, 0.3) !important;
     color: #1E293B !important;
+    border-radius: 8px !important;
+    font-size: 0.9rem !important;
 }
 
 [data-testid="stSidebar"] .stTextInput > div > div > input::placeholder,
@@ -249,10 +292,29 @@ footer { visibility: hidden; }
     color: #94A3B8 !important;
 }
 
+/* Sidebar selectbox styling */
+[data-testid="stSidebar"] .stSelectbox > div > div {
+    background-color: #FFFFFF !important;
+    border-radius: 8px !important;
+}
+
 /* Password input in sidebar */
 [data-testid="stSidebar"] input[type="password"] {
     background-color: #FFFFFF !important;
     color: #1E293B !important;
+}
+
+/* Sidebar divider */
+[data-testid="stSidebar"] hr {
+    border-color: rgba(255, 255, 255, 0.15) !important;
+    margin: 0.75rem 0 !important;
+}
+
+/* Sidebar toggle button */
+[data-testid="stSidebar"] .stToggle {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 8px !important;
+    padding: 0.5rem !important;
 }
 
 /* ============================================
@@ -294,13 +356,21 @@ footer { visibility: hidden; }
     border: 2px solid var(--border) !important;
     padding: 0.75rem 1rem !important;
     font-size: 1rem !important;
-    transition: all 0.2s ease !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
 }
 
 .stTextInput > div > div > input:focus,
 .stTextArea > div > div > textarea:focus {
     border-color: var(--primary) !important;
     box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15) !important;
+}
+
+/* Fix textarea resize lag - use CSS resize instead of JS */
+.stTextArea > div > div > textarea {
+    resize: vertical !important;
+    min-height: 80px !important;
+    will-change: height !important;
+    contain: layout style !important;
 }
 
 /* Chat input specific */
@@ -556,7 +626,60 @@ footer { visibility: hidden; }
 /* ============================================
    RESPONSIVE ADJUSTMENTS
    ============================================ */
-@media (max-width: 768px) {
+
+/* Mobile - Small phones (iPhone SE, etc.) */
+@media (max-width: 480px) {
+    .main .block-container {
+        padding: 1rem 0.75rem !important;
+    }
+
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+        margin-left: 0 !important;
+    }
+
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {
+        margin-right: 0 !important;
+    }
+
+    .stChatMessage {
+        padding: 0.75rem 1rem !important;
+        margin: 0.5rem 0 !important;
+    }
+
+    .s-tier-card {
+        padding: 1.25rem;
+        border-radius: 14px;
+    }
+
+    .score-display {
+        font-size: 2.25rem;
+    }
+
+    h1, .stMarkdown h1 { font-size: 1.5rem !important; }
+    h2, .stMarkdown h2 { font-size: 1.25rem !important; }
+
+    .stButton > button {
+        padding: 0.625rem 1rem !important;
+        font-size: 0.9rem !important;
+    }
+
+    /* Stack form columns on mobile */
+    [data-testid="stHorizontalBlock"] {
+        flex-direction: column !important;
+    }
+
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+}
+
+/* Medium phones and phablets */
+@media (min-width: 481px) and (max-width: 768px) {
+    .main .block-container {
+        padding: 1.25rem 1rem !important;
+    }
+
     [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
         margin-left: 5% !important;
     }
@@ -569,6 +692,271 @@ footer { visibility: hidden; }
         padding: 1.5rem;
         border-radius: 16px;
     }
+}
+
+/* Tablets portrait */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .main .block-container {
+        padding: 1.5rem !important;
+        max-width: 100% !important;
+    }
+
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+        margin-left: 10% !important;
+    }
+
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {
+        margin-right: 10% !important;
+    }
+}
+
+/* ============================================
+   APPLE DEVICE OPTIMIZATIONS
+   ============================================ */
+
+/* iOS Safari specific styles */
+@supports (-webkit-touch-callout: none) {
+    /* Prevent iOS input zoom - must be 16px+ */
+    input, select, textarea,
+    .stTextInput input,
+    .stTextArea textarea,
+    [data-testid="stChatInput"] textarea {
+        font-size: 16px !important;
+    }
+
+    /* Smooth momentum scrolling */
+    .main, [data-testid="stAppViewContainer"] {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Better tap highlighting */
+    button, a, [role="button"] {
+        -webkit-tap-highlight-color: rgba(13, 148, 136, 0.2);
+    }
+
+    /* Disable text selection on buttons */
+    button {
+        -webkit-user-select: none;
+        user-select: none;
+    }
+}
+
+/* Safe area for notched devices (iPhone X, 11, 12, 13, 14, 15+) */
+@supports (padding: max(0px)) {
+    .main .block-container {
+        padding-left: max(1rem, env(safe-area-inset-left)) !important;
+        padding-right: max(1rem, env(safe-area-inset-right)) !important;
+        padding-bottom: max(2rem, env(safe-area-inset-bottom)) !important;
+    }
+
+    [data-testid="stChatInput"] {
+        margin-bottom: max(0.5rem, env(safe-area-inset-bottom));
+    }
+
+    /* Sidebar safe area on landscape */
+    [data-testid="stSidebar"] {
+        padding-left: max(0.5rem, env(safe-area-inset-left));
+    }
+}
+
+/* Touch-friendly targets (44px minimum per Apple HIG) */
+@media (pointer: coarse) {
+    .stButton > button {
+        min-height: 44px !important;
+        min-width: 44px !important;
+    }
+
+    .stTextInput input,
+    .stTextArea textarea,
+    [data-testid="stChatInput"] textarea {
+        min-height: 44px;
+    }
+
+    /* Larger touch targets for selectbox */
+    [data-testid="stSelectbox"] > div > div {
+        min-height: 44px;
+    }
+
+    /* Tab buttons */
+    [data-testid="stTabs"] button[data-baseweb="tab"] {
+        min-height: 44px !important;
+        padding: 0.75rem 1rem !important;
+    }
+
+    /* Expander header */
+    [data-testid="stExpander"] summary {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+}
+
+/* High DPI / Retina displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .stButton > button {
+        border-width: 0.5px;
+    }
+
+    [data-testid="stChatInput"] {
+        border-width: 1px;
+    }
+}
+
+/* Landscape phone optimization */
+@media (max-height: 500px) and (orientation: landscape) {
+    .main .block-container {
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+    }
+
+    .stChatMessage {
+        padding: 0.5rem 0.75rem !important;
+        margin: 0.25rem 0 !important;
+    }
+
+    .s-tier-card {
+        padding: 1rem;
+    }
+}
+
+/* iPad specific optimizations */
+@media (min-width: 768px) and (max-width: 1024px) and (-webkit-min-device-pixel-ratio: 2) {
+    .main .block-container {
+        max-width: 90% !important;
+        margin: 0 auto;
+    }
+
+    .stButton > button {
+        padding: 0.875rem 1.5rem !important;
+    }
+
+    [data-testid="stTabs"] {
+        padding: 0.75rem;
+    }
+
+    [data-testid="stTabs"] button[data-baseweb="tab"] {
+        padding: 0.75rem 1.25rem !important;
+    }
+}
+
+/* Dynamic Island avoidance (iPhone 14 Pro+) */
+@supports (padding: max(0px)) {
+    @media (width: 393px) and (height: 852px),
+           (width: 430px) and (height: 932px) {
+        .main .block-container {
+            padding-top: max(1.5rem, env(safe-area-inset-top)) !important;
+        }
+    }
+}
+
+/* ============================================
+   TABS STYLING - Modern Dashboard
+   ============================================ */
+[data-testid="stTabs"] {
+    background: white;
+    border-radius: 12px;
+    padding: 0.5rem;
+    border: 1px solid #E2E8F0;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    margin-bottom: 1rem;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    gap: 0.25rem;
+    background: #F8FAFC;
+    border-radius: 8px;
+    padding: 0.25rem;
+}
+
+[data-testid="stTabs"] button[data-baseweb="tab"] {
+    border-radius: 6px !important;
+    padding: 0.5rem 1rem !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+    border: none !important;
+    background: transparent !important;
+}
+
+[data-testid="stTabs"] button[data-baseweb="tab"]:hover {
+    background: rgba(13, 148, 136, 0.1) !important;
+}
+
+[data-testid="stTabs"] button[aria-selected="true"] {
+    background: var(--primary) !important;
+    color: white !important;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab-panel"] {
+    padding: 1.5rem 0.5rem !important;
+}
+
+/* Tab indicator line - hide default */
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+    display: none !important;
+}
+
+/* ============================================
+   CARD HOVER EFFECTS
+   ============================================ */
+.stButton > button {
+    transition: all 0.2s ease !important;
+}
+
+.stButton > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+.stButton > button:active {
+    transform: translateY(0);
+}
+
+/* Selectbox styling */
+[data-testid="stSelectbox"] > div > div {
+    border-radius: 8px !important;
+    border: 1px solid #E2E8F0 !important;
+    transition: border-color 0.2s ease !important;
+}
+
+[data-testid="stSelectbox"] > div > div:hover {
+    border-color: var(--primary) !important;
+}
+
+/* Expander styling */
+[data-testid="stExpander"] {
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 8px !important;
+    overflow: hidden;
+}
+
+[data-testid="stExpander"] summary {
+    padding: 0.75rem 1rem !important;
+    font-weight: 500 !important;
+}
+
+/* Toast styling */
+[data-testid="stToast"] {
+    background: var(--primary) !important;
+    color: white !important;
+    border-radius: 8px !important;
+}
+
+/* Metric card animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stColumn > div {
+    animation: fadeInUp 0.3s ease-out;
 }
 
 /* ============================================
