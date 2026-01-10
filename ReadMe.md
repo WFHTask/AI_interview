@@ -313,7 +313,24 @@ cp .env.example .env
 streamlit run app.py
 ```
 
-### Docker 部署（推荐）
+### Docker 一键部署
+
+```bash
+# 克隆项目
+git clone https://github.com/WFHTask/AI_interview.git
+cd AI_interview
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env，填入 GEMINI_API_KEY（必填）
+
+# 一键启动
+docker-compose up -d
+
+# 访问 http://localhost:8501
+```
+
+### Docker 部署（手动构建）
 
 ```bash
 # 构建镜像
@@ -336,6 +353,9 @@ docker-compose up -d
 
 # 查看日志
 docker-compose logs -f
+
+# 停止服务
+docker-compose down
 ```
 
 ### Streamlit Cloud 部署
