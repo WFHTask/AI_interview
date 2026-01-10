@@ -32,7 +32,9 @@ class InterviewerEngine:
         self,
         gemini_service: GeminiService,
         session: InterviewSession,
-        custom_greeting: str = ""
+        custom_greeting: str = "",
+        company_background: str = "",
+        test_mode: bool = False
     ):
         """
         Initialize interviewer engine
@@ -41,15 +43,20 @@ class InterviewerEngine:
             gemini_service: Gemini API service instance
             session: Interview session data
             custom_greeting: Custom greeting for this interview
+            company_background: Company background information
+            test_mode: Enable test mode (/stop triggers S-tier result)
         """
         self.gemini_service = gemini_service
         self.session = session
         self.conversation = ConversationManager(gemini_service)
         self.custom_greeting = custom_greeting
+        self.company_background = company_background
+        self.test_mode = test_mode
 
         # Interview state
         self.is_started = False
         self.is_ended = False
+        self.test_mode_triggered = False  # Flag for /stop command
 
     def _get_system_prompt(self) -> str:
         """Get formatted system prompt with current state"""
@@ -60,7 +67,8 @@ class InterviewerEngine:
             custom_greeting=self.custom_greeting,
             candidate_name=self.session.candidate_name or "",
             candidate_email=self.session.candidate_email or "",
-            candidate_resume=self.session.candidate_resume or ""
+            candidate_resume=self.session.candidate_resume or "",
+            company_background=self.company_background
         )
 
     def start_interview(self) -> Generator[str, None, str]:
@@ -130,16 +138,27 @@ class InterviewerEngine:
             yield STANDARD_RESPONSES["interview_end_normal"]
             return STANDARD_RESPONSES["interview_end_normal"]
 
-        # Check turn limit
+        # Check for /stop command in test mode
+        if self.test_mode and user_message.strip().lower() == "/stop":
+            # Save user message before ending (for evaluation)
+            self.session.add_message(MessageRole.USER, user_message)
+            self.is_ended = True
+            self.test_mode_triggered = True
+            self.session.end_session(SessionStatus.COMPLETED)
+            end_msg = "【测试模式】面试已结束，系统正在生成 S 级评估结果..."
+            yield end_msg
+            return end_msg
+
+        # Save user message to session first (for evaluation later)
+        self.session.add_message(MessageRole.USER, user_message)
+
+        # Check turn limit after saving user message
         if self.session.turn_count >= Settings.MAX_INTERVIEW_TURNS:
             self.is_ended = True
             self.session.end_session(SessionStatus.COMPLETED)
             end_msg = "感谢您的时间，我已经了解了您的基本情况。请稍等，系统正在生成评估结果..."
             yield end_msg
             return end_msg
-
-        # Save user message to session (for evaluation later)
-        self.session.add_message(MessageRole.USER, user_message)
 
         # Restore thought signature for multi-turn
         self.conversation.thought_signature = self.session.thought_signature
@@ -232,6 +251,8 @@ def create_interviewer(
     candidate_email: str = "",
     candidate_resume: str = "",
     custom_greeting: str = "",
+    company_background: str = "",
+    test_mode: bool = False,
     api_key: str = None
 ) -> tuple[InterviewerEngine, InterviewSession]:
     """
@@ -245,6 +266,8 @@ def create_interviewer(
         candidate_email: Candidate email (optional)
         candidate_resume: Candidate resume summary (optional)
         custom_greeting: Custom interviewer greeting (optional)
+        company_background: Company background information (optional)
+        test_mode: Enable test mode (/stop triggers S-tier result)
         api_key: Optional Gemini API key
 
     Returns:
@@ -267,7 +290,59 @@ def create_interviewer(
     engine = InterviewerEngine(
         gemini_service=gemini_service,
         session=session,
-        custom_greeting=custom_greeting
+        custom_greeting=custom_greeting,
+        company_background=company_background,
+        test_mode=test_mode
     )
 
     return engine, session
+
+
+def restore_interviewer(
+    session: InterviewSession,
+    custom_greeting: str = "",
+    company_background: str = "",
+    test_mode: bool = False,
+    api_key: str = None
+) -> InterviewerEngine:
+    """
+    Restore interviewer engine from existing session
+
+    Args:
+        session: Existing InterviewSession with conversation history
+        custom_greeting: Custom interviewer greeting (optional)
+        company_background: Company background information (optional)
+        test_mode: Enable test mode
+        api_key: Optional Gemini API key
+
+    Returns:
+        InterviewerEngine with restored state
+    """
+    # Create Gemini service
+    gemini_service = GeminiService(api_key=api_key)
+
+    # Create interviewer engine
+    engine = InterviewerEngine(
+        gemini_service=gemini_service,
+        session=session,
+        custom_greeting=custom_greeting,
+        company_background=company_background,
+        test_mode=test_mode
+    )
+
+    # Restore state flags
+    engine.is_started = True
+    engine.is_ended = session.status in [SessionStatus.COMPLETED, SessionStatus.TERMINATED]
+
+    # Restore conversation history from session messages
+    for msg in session.messages:
+        if msg.role == MessageRole.USER:
+            engine.conversation.add_user_message(msg.content)
+        elif msg.role == MessageRole.MODEL:
+            engine.conversation.add_model_message(msg.content)
+
+    # Restore thought signature if available
+    if session.thought_signature:
+        engine.conversation.thought_signature = session.thought_signature
+
+    return engine

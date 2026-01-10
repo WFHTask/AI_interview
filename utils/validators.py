@@ -164,41 +164,6 @@ def sanitize_input(text: str, max_length: int = 1000) -> str:
     return text
 
 
-def validate_interview_message(message: str) -> Tuple[bool, Optional[str]]:
-    """
-    Validate interview message from candidate.
-
-    Args:
-        message: Message to validate
-
-    Returns:
-        Tuple of (is_valid, error_message)
-    """
-    if not message:
-        return False, "请输入您的回答"
-
-    message = message.strip()
-
-    if len(message) < 2:
-        return False, "回答内容过短"
-
-    if len(message) > 5000:
-        return False, "回答内容过长，请精简后重试"
-
-    # Check for spam patterns
-    spam_patterns = [
-        r'(.)\\1{10,}',  # Same character repeated 10+ times
-        r'https?://[^\s]+',  # URLs
-        r'www\.[^\s]+',  # URLs without protocol
-    ]
-
-    for pattern in spam_patterns:
-        if re.search(pattern, message):
-            return False, "回答内容包含不支持的格式"
-
-    return True, None
-
-
 def validate_candidate_info(
     name: str,
     email: str,
@@ -231,3 +196,74 @@ def validate_candidate_info(
             errors["phone"] = error
 
     return len(errors) == 0, errors
+
+
+# Maximum allowed input length for interview messages
+MAX_INPUT_LENGTH = 5000
+
+
+def validate_user_input(text: str) -> Tuple[bool, str, Optional[str]]:
+    """
+    Validate and sanitize user input for interview.
+    This function performs security checks and content validation.
+
+    Args:
+        text: User input text
+
+    Returns:
+        Tuple of (is_valid, sanitized_text, error_message)
+        - is_valid: True if input passes all checks
+        - sanitized_text: Cleaned input text (only valid if is_valid is True)
+        - error_message: Error description if validation fails, None otherwise
+    """
+    if not text:
+        return False, "", "请输入您的回答"
+
+    # Basic sanitization
+    text = text.strip()
+
+    # Length check
+    if len(text) > MAX_INPUT_LENGTH:
+        return False, "", f"输入过长，请控制在 {MAX_INPUT_LENGTH} 字符以内（当前: {len(text)} 字符）"
+
+    if len(text) < 1:
+        return False, "", "请输入有效内容"
+
+    # Check for excessive repetition (potential DoS or spam)
+    if re.search(r'(.)\1{20,}', text):
+        return False, "", "输入内容格式异常，请检查后重试"
+
+    # Check for excessive whitespace or newlines
+    if re.search(r'\n{5,}', text) or re.search(r' {20,}', text):
+        return False, "", "输入内容格式异常，请检查后重试"
+
+    # Sanitize the text
+    sanitized = sanitize_input(text, max_length=MAX_INPUT_LENGTH)
+
+    return True, sanitized, None
+
+
+def check_input_length(text: str) -> Tuple[bool, Optional[str]]:
+    """
+    Quick check for input length without full sanitization.
+    Use this for real-time validation as user types.
+
+    Args:
+        text: User input text
+
+    Returns:
+        Tuple of (is_within_limit, error_message)
+    """
+    if not text:
+        return True, None
+
+    length = len(text)
+    if length > MAX_INPUT_LENGTH:
+        return False, f"输入过长（{length}/{MAX_INPUT_LENGTH}）"
+
+    # Warning at 80% of limit
+    if length > MAX_INPUT_LENGTH * 0.8:
+        remaining = MAX_INPUT_LENGTH - length
+        return True, f"还可输入 {remaining} 字符"
+
+    return True, None

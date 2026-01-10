@@ -52,6 +52,9 @@ class JobConfig(BaseModel):
     # Statistics
     interview_count: int = 0
 
+    # Test mode - when enabled, /stop command triggers S-tier result
+    test_mode: bool = False
+
     def __init__(self, **data):
         super().__init__(**data)
         # Set default expiry if not provided
@@ -168,7 +171,7 @@ class JobConfigService:
 
     def increment_interview_count(self, config_id: str) -> bool:
         """
-        Increment interview count for a config
+        Increment interview count for a config (atomic operation)
 
         Args:
             config_id: Configuration ID
@@ -176,13 +179,27 @@ class JobConfigService:
         Returns:
             True if successful
         """
-        config = self.load_config(config_id)
-        if not config:
+        path = self._get_config_path(config_id)
+
+        if not path.exists():
             return False
 
-        config.interview_count += 1
-        self.save_config(config)
-        return True
+        try:
+            # Use single lock for read-modify-write to prevent race condition
+            with file_lock(str(path)):
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                # Increment count
+                data["interview_count"] = data.get("interview_count", 0) + 1
+
+                # Write back atomically
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+
+            return True
+        except Exception:
+            return False
 
     def list_configs(self, active_only: bool = True) -> List[JobConfig]:
         """
@@ -202,7 +219,7 @@ class JobConfigService:
                     data = json.load(f)
                 config = JobConfig(**data)
 
-                if active_only and not config.is_active:
+                if active_only and not config.is_valid():
                     continue
 
                 configs.append(config)
@@ -238,7 +255,8 @@ class JobConfigService:
         custom_greeting: str = "",
         s_tier_invitation: str = "",
         s_tier_link: str = "",
-        feishu_webhook: str = ""
+        feishu_webhook: str = "",
+        test_mode: bool = False
     ) -> JobConfig:
         """
         Create a new job configuration
@@ -250,6 +268,7 @@ class JobConfigService:
             s_tier_invitation: S-tier invitation text
             s_tier_link: S-tier booking link
             feishu_webhook: Feishu webhook URL
+            test_mode: Enable test mode for /stop command
 
         Returns:
             Created JobConfig
@@ -260,7 +279,8 @@ class JobConfigService:
             custom_greeting=custom_greeting,
             s_tier_invitation=s_tier_invitation or "请直接添加 CTO 微信进行沟通",
             s_tier_link=s_tier_link,
-            feishu_webhook=feishu_webhook
+            feishu_webhook=feishu_webhook,
+            test_mode=test_mode
         )
 
         self.save_config(config)
@@ -277,7 +297,8 @@ def create_job_config(
     custom_greeting: str = "",
     s_tier_invitation: str = "",
     s_tier_link: str = "",
-    feishu_webhook: str = ""
+    feishu_webhook: str = "",
+    test_mode: bool = False
 ) -> JobConfig:
     """
     Convenience function to create a job configuration
@@ -291,7 +312,8 @@ def create_job_config(
         custom_greeting=custom_greeting,
         s_tier_invitation=s_tier_invitation,
         s_tier_link=s_tier_link,
-        feishu_webhook=feishu_webhook
+        feishu_webhook=feishu_webhook,
+        test_mode=test_mode
     )
 
 

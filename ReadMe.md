@@ -146,29 +146,25 @@ AI 面试官采用 STAR (Situation, Task, Action, Result) 方法论：
 
 ### 环境要求
 
-- Python 3.10+
-- Google Gemini API Key
+- Python 3.10+ 或 Docker
+- Google Gemini API Key（[获取方式](#获取-gemini-api-key)）
 
-### 安装步骤
+### 30 秒启动
 
 ```bash
 # 克隆项目
 git clone https://github.com/WFHTask/AI_interview.git
 cd AI_interview
 
-# 创建虚拟环境
-python -m venv venv
-venv\Scripts\activate  # Windows
-source venv/bin/activate  # Linux/Mac
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 配置环境变量
+# 配置 API Key
 cp .env.example .env
-# 编辑 .env 文件，填入 Gemini API Key
+# 编辑 .env，填入 GEMINI_API_KEY
 
-# 启动服务
+# 方式一：Docker 一键启动（推荐）
+docker-compose up -d
+
+# 方式二：本地 Python 启动
+pip install -r requirements.txt
 streamlit run app.py
 ```
 
@@ -178,6 +174,8 @@ streamlit run app.py
 - **候选人面试**: http://localhost:8501/?job=<config_id>
 - **面试详情**: http://localhost:8501/?session=<session_id>
 
+> 更多部署方式见 [部署指南](#部署指南)
+
 ---
 
 ## 配置说明
@@ -185,19 +183,40 @@ streamlit run app.py
 ### 环境变量 (.env)
 
 ```bash
-# 必填
+# ============ 必填配置 ============
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# 可选
+# ============ 可选配置 ============
+
+# Gemini API 设置
 GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
-INTERVIEWER_MODEL=gemini-3.0-flash
-EVALUATOR_MODEL=gemini-3.0-pro
-FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+INTERVIEWER_MODEL=gemini-3.0-flash      # 面试官模型（快速响应）
+EVALUATOR_MODEL=gemini-3.0-pro          # 判官模型（深度评估）
+
+# HR 后台登录
 HR_USERNAME=admin
-HR_PASSWORD=your_secure_password
-APP_BASE_URL=http://localhost:8501
-MAX_INTERVIEW_TURNS=50
+HR_PASSWORD=your_secure_password        # 不设置则无需登录
+
+# 应用配置
+APP_BASE_URL=http://localhost:8501      # 部署后需改为实际地址
+MAX_INTERVIEW_TURNS=50                  # 最大对话轮次
+
+# 飞书通知（可选）
+FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
 ```
+
+### 获取 Gemini API Key
+
+1. 访问 [Google AI Studio](https://aistudio.google.com/)
+2. 登录 Google 账号
+3. 点击 "Get API Key" → "Create API Key"
+4. 复制 Key 到 `.env` 文件
+
+### 飞书 Webhook 配置（可选）
+
+1. 在飞书群聊中添加「自定义机器人」
+2. 复制 Webhook 地址到 `.env`
+3. 面试完成后会自动推送通知卡片
 
 ---
 
@@ -275,18 +294,95 @@ AI_interview/
 
 ## 部署指南
 
-### Docker
+### Docker 一键部署（推荐）
 
 ```bash
-docker build -t ai-interview .
-docker run -p 8501:8501 --env-file .env ai-interview
+# 克隆项目
+git clone https://github.com/WFHTask/AI_interview.git
+cd AI_interview
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env，填入 GEMINI_API_KEY（必填）
+
+# 一键启动
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+
+# 访问 http://localhost:8501
 ```
 
-### Streamlit Cloud
+### Docker 手动构建
 
-1. 推送到 GitHub
-2. 在 share.streamlit.io 创建应用
-3. 配置 Secrets
+```bash
+# 构建镜像
+docker build -t ai-interview .
+
+# 运行容器
+docker run -d \
+  --name ai-interview \
+  -p 8501:8501 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  ai-interview
+```
+
+### 本地 Python 开发
+
+```bash
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate      # Windows
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 配置环境变量
+cp .env.example .env
+
+# 启动
+streamlit run app.py
+```
+
+### Streamlit Cloud 部署
+
+1. Fork 本仓库到你的 GitHub
+2. 访问 [share.streamlit.io](https://share.streamlit.io)
+3. 点击 "New app" 选择仓库
+4. 在 "Advanced settings" 中配置 Secrets：
+   ```toml
+   GEMINI_API_KEY = "your_api_key"
+   HR_PASSWORD = "your_password"
+   APP_BASE_URL = "https://your-app.streamlit.app"
+   ```
+5. 点击 Deploy
+
+> **注意**：Vercel 不支持 Streamlit 部署，请使用 Streamlit Cloud 或 Docker。
+
+---
+
+## 存储说明
+
+本系统采用 **JSON 文件存储**，数据保存在 `data/` 目录：
+
+```
+data/
+├── interviews/        # 面试记录（按日期组织）
+│   └── 2026-01-10/
+│       ├── abc123_session.json
+│       └── abc123_evaluation.json
+└── job_configs/       # 岗位配置
+    └── config_xxx.json
+```
+
+- 飞书仅用于 **通知推送**，不用于数据存储
+- 生产环境建议定期备份 `data/` 目录
 
 ---
 

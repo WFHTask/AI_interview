@@ -109,6 +109,12 @@ class EvaluatorEngine:
         """
         Run evaluation with timeout using thread pool.
 
+        Note: ThreadPoolExecutor.result(timeout) only raises TimeoutError after
+        the specified time, but the underlying thread continues running until
+        completion. This means the actual wait time could exceed the timeout
+        if the API call is slow. For truly interruptible timeouts, consider
+        using asyncio or multiprocessing with Process.terminate().
+
         Args:
             session: Interview session
             chat_history: Chat history text
@@ -181,8 +187,8 @@ class EvaluatorEngine:
         # Create EvaluationResult
         evaluation = EvaluationResult.from_json(data)
 
-        # Update session with candidate name if found
-        if evaluation.candidate_name != "Unknown":
+        # Update session with candidate name only if not already set by user
+        if not session.candidate_name and evaluation.candidate_name != "Unknown":
             session.candidate_name = evaluation.candidate_name
 
         return evaluation
@@ -209,13 +215,9 @@ class EvaluatorEngine:
             "total_score": 50,  # Neutral score
             "decision_tier": "B",  # Default to B - needs manual review
             "is_pass": True,  # Let HR decide
-            "dimension_scores": {
-                "technical_skills": 50,
-                "communication": 50,
-                "problem_solving": 50,
-                "culture_fit": 50,
-                "motivation": 50
-            },
+            "skill_match_score": 50,
+            "communication_score": 50,
+            "remote_readiness_score": 50,
             "key_strengths": ["需要人工复核"],
             "red_flags": [f"自动评估失败: {error_message}"],
             "summary": "由于系统原因，自动评估未能完成。建议 HR 人工查看面试记录进行评估。",
@@ -293,14 +295,51 @@ class EvaluatorEngine:
         if "summary" not in data or not data["summary"]:
             data["summary"] = f"候选人综合得分 {total_score} 分，评级为 {data['decision_tier']} 级。"
 
-        # Generate notification text based on tier (use configurable defaults)
+        # Generate notification text based on tier (use configurable defaults only if not provided)
         if data["decision_tier"] == "S":
             if "notification_text" not in data or "感谢您的时间" in data.get("notification_text", ""):
                 data["notification_text"] = Settings.S_TIER_DEFAULT_NOTIFICATION
         else:
-            data["notification_text"] = Settings.DEFAULT_NOTIFICATION
+            # Only set default if not provided or empty
+            if "notification_text" not in data or not data.get("notification_text", "").strip():
+                data["notification_text"] = Settings.DEFAULT_NOTIFICATION
 
         return data
+
+    def create_test_mode_evaluation(
+        self,
+        session: InterviewSession
+    ) -> EvaluationResult:
+        """
+        Create S-tier evaluation for test mode (/stop command)
+
+        Args:
+            session: Interview session
+
+        Returns:
+            EvaluationResult with S-tier rating
+        """
+        logger.info(f"Creating test mode S-tier evaluation for session {session.session_id}")
+
+        data = {
+            "candidate_name": session.candidate_name or "测试用户",
+            "total_score": 95,
+            "decision_tier": "S",
+            "is_pass": True,
+            "skill_match_score": 95,
+            "communication_score": 95,
+            "remote_readiness_score": 95,
+            "key_strengths": [
+                "【测试模式】自动生成的 S 级评估",
+                "技术能力突出",
+                "沟通表达清晰"
+            ],
+            "red_flags": [],
+            "summary": "【测试模式】此评估由 /stop 指令触发，候选人被自动判定为 S 级人才。",
+            "notification_text": Settings.S_TIER_DEFAULT_NOTIFICATION
+        }
+
+        return EvaluationResult.from_json(data)
 
     def create_notification(
         self,

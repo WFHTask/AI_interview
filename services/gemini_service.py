@@ -157,10 +157,18 @@ class GeminiService:
 
                 # Don't retry on client errors (except 429)
                 if status_code and 400 <= status_code < 500 and status_code != 429:
+                    # Safely try to parse response JSON
+                    response_data = None
+                    try:
+                        if e.response is not None:
+                            response_data = e.response.json()
+                    except (ValueError, json.JSONDecodeError):
+                        pass
+
                     raise GeminiAPIError(
                         f"API request failed: {str(e)}",
                         status_code=status_code,
-                        response=e.response.json() if e.response else None
+                        response=response_data
                     )
 
                 # Exponential backoff
@@ -252,7 +260,10 @@ class GeminiService:
                     if 'thoughtSignature' in candidate:
                         new_thought_signature = candidate['thoughtSignature']
 
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
+                    # Log malformed SSE data for debugging
+                    import logging
+                    logging.debug(f"Malformed SSE JSON chunk: {line[:100]}... Error: {e}")
                     continue
 
         # Final yield with thought signature

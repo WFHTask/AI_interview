@@ -10,6 +10,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _safe_int(env_var: str, default: int) -> int:
+    """Safely parse integer from environment variable with fallback."""
+    value = os.getenv(env_var)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        import logging
+        logging.warning(f"Invalid integer value for {env_var}: '{value}', using default: {default}")
+        return default
+
+
 class Settings:
     """Application settings loaded from environment variables"""
 
@@ -37,29 +50,28 @@ class Settings:
     HR_PASSWORD: str = os.getenv("HR_PASSWORD", "")  # Must be set in .env
 
     # Interview Settings
-    MAX_INTERVIEW_TURNS: int = int(os.getenv("MAX_INTERVIEW_TURNS", "50"))
-    MIN_INTERVIEW_TURNS: int = int(os.getenv("MIN_INTERVIEW_TURNS", "20"))
+    MAX_INTERVIEW_TURNS: int = _safe_int("MAX_INTERVIEW_TURNS", 28)
 
     # API Timeout (seconds)
-    API_TIMEOUT: int = int(os.getenv("API_TIMEOUT", "120"))
+    API_TIMEOUT: int = _safe_int("API_TIMEOUT", 120)
 
     # Evaluation timeout (seconds)
-    EVALUATION_TIMEOUT: int = int(os.getenv("EVALUATION_TIMEOUT", "120"))
+    EVALUATION_TIMEOUT: int = _safe_int("EVALUATION_TIMEOUT", 120)
 
     # Link expiry (days)
-    LINK_EXPIRY_DAYS: int = int(os.getenv("LINK_EXPIRY_DAYS", "30"))
+    LINK_EXPIRY_DAYS: int = _safe_int("LINK_EXPIRY_DAYS", 30)
 
     # Session expiry (hours)
-    SESSION_EXPIRY_HOURS: int = int(os.getenv("SESSION_EXPIRY_HOURS", "24"))
+    SESSION_EXPIRY_HOURS: int = _safe_int("SESSION_EXPIRY_HOURS", 24)
 
     # Rate limiting
-    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "20"))
-    RATE_LIMIT_WINDOW: int = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+    RATE_LIMIT_REQUESTS: int = _safe_int("RATE_LIMIT_REQUESTS", 20)
+    RATE_LIMIT_WINDOW: int = _safe_int("RATE_LIMIT_WINDOW", 60)
 
     # Scoring Thresholds
-    S_TIER_THRESHOLD: int = int(os.getenv("S_TIER_THRESHOLD", "90"))
-    A_TIER_THRESHOLD: int = int(os.getenv("A_TIER_THRESHOLD", "80"))
-    B_TIER_THRESHOLD: int = int(os.getenv("B_TIER_THRESHOLD", "60"))
+    S_TIER_THRESHOLD: int = _safe_int("S_TIER_THRESHOLD", 90)
+    A_TIER_THRESHOLD: int = _safe_int("A_TIER_THRESHOLD", 80)
+    B_TIER_THRESHOLD: int = _safe_int("B_TIER_THRESHOLD", 60)
 
     # Default S-tier notification text (can be overridden in job config)
     S_TIER_DEFAULT_NOTIFICATION: str = os.getenv(

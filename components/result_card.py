@@ -14,7 +14,8 @@ from components.styles import get_s_tier_card, get_result_card, icon
 def render_evaluation_result(
     evaluation: EvaluationResult,
     s_tier_invitation: str = "",
-    s_tier_link: str = ""
+    s_tier_link: str = "",
+    show_details_for_non_s: bool = False
 ):
     """
     Render evaluation result based on tier
@@ -23,6 +24,7 @@ def render_evaluation_result(
         evaluation: Evaluation result object
         s_tier_invitation: Custom S-tier invitation text
         s_tier_link: S-tier booking link
+        show_details_for_non_s: If True, show full details for non-S tier (for HR view)
     """
     if evaluation.is_s_tier:
         render_s_tier_celebration(
@@ -30,8 +32,12 @@ def render_evaluation_result(
             invitation=s_tier_invitation,
             link=s_tier_link
         )
-    else:
+    elif show_details_for_non_s:
+        # Full details for HR review
         render_standard_result(evaluation)
+    else:
+        # Simple end message for candidates (non-S tier)
+        render_interview_ended_simple(evaluation)
 
 
 def render_s_tier_celebration(
@@ -222,6 +228,94 @@ def render_evaluation_error(error_message: str):
         </p>
     </div>
     """, unsafe_allow_html=True)
+
+
+def render_interview_ended_simple(evaluation: EvaluationResult = None):
+    """
+    Render simple interview ended message for non-S tier candidates.
+
+    No score or evaluation details shown - just a thank you message.
+
+    Args:
+        evaluation: Evaluation result (optional, used for notification_text)
+    """
+    # Use notification text from evaluation if available, otherwise default
+    notification_text = ""
+    if evaluation and evaluation.notification_text:
+        notification_text = evaluation.notification_text
+
+    render_interview_ended_safe(notification_text)
+
+
+def render_interview_ended_safe(notification_text: str = ""):
+    """
+    SECURITY: Render simple interview ended message without any evaluation object.
+
+    This function takes only primitive types, no evaluation data exposed.
+
+    Args:
+        notification_text: Simple message to show candidate
+    """
+    check_icon = icon("check-circle", size=48, color="#0D9488")
+
+    # Default message if not provided
+    message = notification_text or "感谢您的时间，我们已记录您的面试信息，HR 将在近期与您联系。"
+
+    st.markdown(f"""
+    <div style="
+        text-align: center;
+        padding: 2.5rem 2rem;
+        background: linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 100%);
+        border-radius: 16px;
+        margin: 1.5rem 0;
+        border: 1px solid #99F6E4;
+    ">
+        <div style="margin-bottom: 1.25rem; display: flex; justify-content: center;">{check_icon}</div>
+        <h2 style="margin: 0 0 1rem 0; color: #134E4A; font-size: 1.5rem;">面试已完成</h2>
+        <p style="color: #0F766E; margin: 0; font-size: 1rem; max-width: 400px; margin: 0 auto; line-height: 1.6;">
+            {message}
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Disable further interaction hint
+    st.markdown("""
+    <div style="
+        text-align: center;
+        padding: 0.75rem;
+        color: #64748B;
+        font-size: 0.875rem;
+    ">
+        您可以关闭此页面
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_s_tier_result_safe(
+    notification_text: str = "",
+    invitation: str = "",
+    link: str = ""
+):
+    """
+    SECURITY: Render S-tier celebration without any evaluation object.
+
+    This function takes only primitive types, no evaluation data exposed.
+
+    Args:
+        notification_text: Congratulation message
+        invitation: S-tier invitation text
+        link: S-tier booking link
+    """
+    # Celebration animation
+    st.balloons()
+
+    # S-tier card using safe function
+    card_html = get_s_tier_card(
+        notification_text=notification_text or "恭喜！您的表现非常出色！",
+        invitation=invitation or "请直接添加 CTO 微信进行沟通",
+        link=link
+    )
+    st.markdown(card_html, unsafe_allow_html=True)
 
 
 def render_tier_explanation():

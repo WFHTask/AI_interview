@@ -8,6 +8,12 @@ from pydantic import BaseModel, Field
 import uuid
 
 
+class CompanyConfig(BaseModel):
+    """公司信息配置"""
+    company_background: str = ""  # 公司背景及招聘目标（必填）
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 class SessionStatus(str, Enum):
     """Interview session status"""
     PENDING = "pending"           # Waiting to start
@@ -38,7 +44,14 @@ class Message(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
 
     def to_gemini_format(self) -> Dict[str, Any]:
-        """Convert to Gemini API format"""
+        """
+        Convert to Gemini API format.
+
+        Note: Gemini API doesn't support a dedicated 'system' role in contents.
+        System instructions should be passed via the systemInstruction parameter.
+        If MessageRole.SYSTEM appears here, it's converted to 'user' as a fallback,
+        though this should ideally be handled at the API call level.
+        """
         return {
             "role": self.role.value if self.role != MessageRole.SYSTEM else "user",
             "parts": [{"text": self.content}]
@@ -59,6 +72,7 @@ class InterviewSession(BaseModel):
     candidate_email: Optional[str] = None
     candidate_resume: Optional[str] = None
     candidate_info: Optional[Dict[str, Any]] = None
+    resume_file_path: Optional[str] = None  # Path to uploaded resume file (for HR review)
 
     # Conversation
     chat_history: List[Message] = Field(default_factory=list)
@@ -79,6 +93,11 @@ class InterviewSession(BaseModel):
         if role == MessageRole.USER:
             self.turn_count += 1
         self.updated_at = datetime.now()
+
+    @property
+    def messages(self) -> List[Message]:
+        """Alias for chat_history for backward compatibility"""
+        return self.chat_history
 
     def get_gemini_contents(self) -> List[Dict[str, Any]]:
         """Get chat history in Gemini API format"""
@@ -174,10 +193,12 @@ class FeishuNotification(BaseModel):
     ) -> "FeishuNotification":
         """Create from session and evaluation result"""
         import os
-        # Generate detail URL
+        # Generate detail URL (use ?session= format compatible with Streamlit routing)
         if not base_url:
             base_url = os.getenv("APP_BASE_URL", "http://localhost:8501")
-        detail_url = f"{base_url}/detail?session={session.session_id[:8]}"
+        # Remove trailing slash if present
+        base_url = base_url.rstrip("/")
+        detail_url = f"{base_url}/?session={session.session_id[:8]}"
 
         return cls(
             session_id=session.session_id,
@@ -192,4 +213,34 @@ class FeishuNotification(BaseModel):
             chat_history_text=session.get_chat_history_text(),
             detail_url=detail_url,
             is_urgent=evaluation.is_s_tier
+        )
+
+
+class CandidateSafeConfig(BaseModel):
+    """
+    SECURITY: Safe subset of job config for candidate view.
+
+    Only contains information the candidate needs to see.
+    Excludes: feishu_webhook and other internal settings.
+
+    Note: test_mode is included as it's needed for UI logic (keyboard input toggle)
+    but is not considered sensitive information.
+    """
+    config_id: str
+    job_title: str = ""
+    # S-tier info only shown after evaluation if candidate is S-tier
+    s_tier_invitation: str = ""
+    s_tier_link: str = ""
+    # test_mode is needed for UI logic (allow keyboard input for /stop command)
+    test_mode: bool = False
+
+    @classmethod
+    def from_job_config(cls, job_config) -> "CandidateSafeConfig":
+        """Create safe config from full JobConfig"""
+        return cls(
+            config_id=job_config.config_id,
+            job_title=job_config.job_title,
+            s_tier_invitation=job_config.s_tier_invitation,
+            s_tier_link=job_config.s_tier_link,
+            test_mode=job_config.test_mode
         )

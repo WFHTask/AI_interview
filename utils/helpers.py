@@ -188,11 +188,13 @@ def parse_score_to_tier(score: int) -> str:
     Returns:
         Tier string (S/A/B/C)
     """
-    if score >= 90:
+    from config.settings import Settings
+
+    if score >= Settings.S_TIER_THRESHOLD:
         return "S"
-    elif score >= 80:
+    elif score >= Settings.A_TIER_THRESHOLD:
         return "A"
-    elif score >= 60:
+    elif score >= Settings.B_TIER_THRESHOLD:
         return "B"
     else:
         return "C"

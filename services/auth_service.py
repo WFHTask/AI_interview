@@ -5,7 +5,7 @@ Security features:
 - Constant-time password comparison (prevent timing attacks)
 - No plaintext password storage in session
 - Session-based authentication state
-- File-based session persistence
+- File-based session persistence with file locking
 """
 import hashlib
 import hmac
@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from config.settings import Settings
+from utils.file_lock import file_lock, safe_write_json
 
 # Session configuration (use Settings value)
 SESSION_FILE = Path(Settings.BASE_DIR) / "data" / ".sessions.json"
@@ -38,11 +39,12 @@ class AuthService:
         self._load_sessions()
 
     def _load_sessions(self) -> None:
-        """Load sessions from file"""
+        """Load sessions from file with file locking"""
         try:
             if SESSION_FILE.exists():
-                with open(SESSION_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                with file_lock(str(SESSION_FILE)):
+                    with open(SESSION_FILE, "r", encoding="utf-8") as f:
+                        data = json.load(f)
                     # Filter expired sessions
                     now = time.time()
                     self._session_tokens = {
@@ -51,23 +53,38 @@ class AuthService:
                     }
                     # Save back without expired sessions
                     if len(self._session_tokens) != len(data):
-                        self._save_sessions()
+                        self._save_sessions_unlocked()
         except (json.JSONDecodeError, IOError):
             self._session_tokens = {}
 
-    def _save_sessions(self) -> None:
-        """Save sessions to file"""
+    def _save_sessions_unlocked(self) -> None:
+        """Save sessions to file (caller must hold lock)"""
         try:
-            SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
             with open(SESSION_FILE, "w", encoding="utf-8") as f:
                 json.dump(self._session_tokens, f)
         except IOError:
-            pass
+            import logging
+            logging.warning("Failed to save session file")
+
+    def _save_sessions(self) -> None:
+        """Save sessions to file with atomic write"""
+        try:
+            SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+            safe_write_json(str(SESSION_FILE), self._session_tokens)
+        except Exception:
+            import logging
+            logging.warning("Failed to save session file")
 
     def _hash_password(self, password: str) -> str:
         """
         Hash password for comparison.
-        Using SHA-256 for simple hashing (passwords are from env, not user-created)
+
+        Uses SHA-256 for simple hashing. This is acceptable here because:
+        1. Passwords come from environment variables, not user-created
+        2. The hash is only used for comparison, not stored persistently
+        3. Adding bcrypt would require additional dependencies
+
+        For user-created passwords in production, consider using bcrypt or argon2.
         """
         return hashlib.sha256(password.encode('utf-8')).hexdigest()
 

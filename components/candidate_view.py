@@ -13,6 +13,13 @@ import streamlit as st
 from typing import Optional, Callable, Dict, Any
 
 from components.styles import icon, MAIN_CSS
+from components.voice_input_guide import (
+    render_voice_input_guide,
+    render_voice_input_setup,
+    render_voice_input_reminder,
+    inject_voice_only_mode,
+    VOICE_INPUT_CSS
+)
 from services.job_config_service import JobConfig
 from utils.validators import validate_candidate_name, validate_email
 
@@ -113,8 +120,8 @@ def render_candidate_welcome(
     st.markdown("### 上传简历 (可选)")
     st.caption("上传简历可以让面试官更好地了解您，进行更有针对性的提问")
 
-    # Resume upload tabs
-    resume_tab1, resume_tab2 = st.tabs(["📄 上传文件", "📝 粘贴文本"])
+    # Resume upload tabs (using text labels instead of emoji per style guide)
+    resume_tab1, resume_tab2 = st.tabs(["上传文件", "粘贴文本"])
 
     resume_data = None
     resume_summary = ""
@@ -147,6 +154,9 @@ def render_candidate_welcome(
                         # Store in session state
                         st.session_state.parsed_resume = resume_data
                         st.session_state.resume_summary = resume_summary
+                        # Store file data for later saving (after interview starts)
+                        st.session_state.resume_file_data = file_bytes
+                        st.session_state.resume_file_name = uploaded_file.name
 
                         st.success("简历解析成功！")
                     except Exception as e:
@@ -187,16 +197,23 @@ def render_candidate_welcome(
     # Get resume summary from session if available
     final_resume_summary = st.session_state.get("resume_summary", "")
 
+    # Voice input guidance
+    render_voice_input_guide()
+
+    with st.expander("语音输入设置指南", expanded=False):
+        render_voice_input_setup()
+
     # Interview tips
     with st.expander("面试须知", expanded=False):
         st.markdown("""
         **面试流程：**
         1. AI 面试官会先进行简短的自我介绍
         2. 面试过程中会围绕您的技术经验进行提问
-        3. 请尽量详细、具体地回答问题
+        3. 请使用语音输入详细回答问题
         4. 面试结束后系统会生成评估结果
 
         **注意事项：**
+        - 本系统仅支持语音输入，请先安装豆包输入法
         - 请在安静的环境下进行面试
         - 面试过程中请保持网络稳定
         - 建议使用 Chrome 或 Firefox 浏览器
@@ -290,7 +307,7 @@ def _render_resume_preview(resume_data: Dict[str, Any]):
             st.markdown(f"**摘要:** {resume_data['summary']}")
 
 
-def render_candidate_chat_header(job_title: str = "", turn_count: int = 0, max_turns: int = 50):
+def render_candidate_chat_header(job_title: str = "", turn_count: int = 0, max_turns: int = 50, test_mode: bool = False):
     """
     Render minimal header during interview
 
@@ -298,7 +315,13 @@ def render_candidate_chat_header(job_title: str = "", turn_count: int = 0, max_t
         job_title: Job title
         turn_count: Current turn count
         max_turns: Maximum turns
+        test_mode: If True, skip voice-only mode to allow keyboard input
     """
+    # Inject voice-only mode CSS and JavaScript (blocks keyboard, allows paste)
+    # Skip in test mode to allow typing /stop command
+    if not test_mode:
+        inject_voice_only_mode()
+
     target_icon = icon("target", size=24, color="#0D9488")
 
     progress_pct = min((turn_count / max_turns) * 100, 100)
@@ -347,6 +370,9 @@ def render_candidate_chat_header(job_title: str = "", turn_count: int = 0, max_t
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # Show voice input reminder
+    render_voice_input_reminder()
 
 
 def render_interview_complete_message():
