@@ -146,29 +146,25 @@ AI 面试官采用 STAR (Situation, Task, Action, Result) 方法论：
 
 ### 环境要求
 
-- Python 3.10+
-- Google Gemini API Key
+- Python 3.10+ 或 Docker
+- Google Gemini API Key（[获取方式](#获取-gemini-api-key)）
 
-### 安装步骤
+### 30 秒启动
 
 ```bash
 # 克隆项目
 git clone https://github.com/WFHTask/AI_interview.git
 cd AI_interview
 
-# 创建虚拟环境
-python -m venv venv
-venv\Scripts\activate  # Windows
-source venv/bin/activate  # Linux/Mac
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 配置环境变量
+# 配置 API Key
 cp .env.example .env
-# 编辑 .env 文件，填入 Gemini API Key
+# 编辑 .env，填入 GEMINI_API_KEY
 
-# 启动服务
+# 方式一：Docker 一键启动（推荐）
+docker-compose up -d
+
+# 方式二：本地 Python 启动
+pip install -r requirements.txt
 streamlit run app.py
 ```
 
@@ -177,6 +173,8 @@ streamlit run app.py
 - **HR 管理后台**: http://localhost:8501
 - **候选人面试**: http://localhost:8501/?job=<config_id>
 - **面试详情**: http://localhost:8501/?session=<session_id>
+
+> 更多部署方式见 [部署指南](#部署指南)
 
 ---
 
@@ -296,24 +294,7 @@ AI_interview/
 
 ## 部署指南
 
-### 本地开发
-
-```bash
-# 确保 Python 3.10+ 已安装
-python --version
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env，填入必要配置
-
-# 启动
-streamlit run app.py
-```
-
-### Docker 一键部署
+### Docker 一键部署（推荐）
 
 ```bash
 # 克隆项目
@@ -327,10 +308,16 @@ cp .env.example .env
 # 一键启动
 docker-compose up -d
 
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+
 # 访问 http://localhost:8501
 ```
 
-### Docker 部署（手动构建）
+### Docker 手动构建
 
 ```bash
 # 构建镜像
@@ -345,17 +332,22 @@ docker run -d \
   ai-interview
 ```
 
-### Docker Compose 部署
+### 本地 Python 开发
 
 ```bash
-# 创建 .env 文件后
-docker-compose up -d
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate      # Windows
 
-# 查看日志
-docker-compose logs -f
+# 安装依赖
+pip install -r requirements.txt
 
-# 停止服务
-docker-compose down
+# 配置环境变量
+cp .env.example .env
+
+# 启动
+streamlit run app.py
 ```
 
 ### Streamlit Cloud 部署
