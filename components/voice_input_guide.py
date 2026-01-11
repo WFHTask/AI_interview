@@ -44,12 +44,12 @@ def render_voice_input_guide():
                     本系统仅支持语音输入
                 </h4>
                 <p style="margin: 0 0 1rem 0; color: #78350F; font-size: 0.95rem; line-height: 1.6;">
-                    请安装「豆包语音输入法」后使用语音回答问题：
+                    请安装语音输入工具后使用语音回答问题：
                 </p>
                 <ul style="margin: 0; padding-left: 1.25rem; color: #78350F; font-size: 0.9rem; line-height: 1.8;">
-                    <li><strong>iOS 下载：</strong>App Store 搜索"豆包输入法"</li>
-                    <li><strong>Android 下载：</strong>各应用商店搜索"豆包输入法"</li>
-                    <li><strong>电脑端：</strong>访问 <a href="https://www.doubao.com/" target="_blank" rel="noopener noreferrer" style="color: #0D9488;">https://www.doubao.com/</a></li>
+                    <li><strong>iOS：</strong>App Store 搜索"豆包输入法"</li>
+                    <li><strong>Android：</strong>各应用商店搜索"豆包输入法"</li>
+                    <li><strong>电脑端：</strong>使用「闪电说」<a href="https://shandianshuo.cn/" target="_blank" rel="noopener noreferrer" style="color: #0D9488;">https://shandianshuo.cn/</a></li>
                 </ul>
                 <div style="
                     background: rgba(255,255,255,0.6);
@@ -73,7 +73,7 @@ def render_voice_input_setup():
 
     Shows download links and step-by-step instructions.
     """
-    html_content = """<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 1.5rem; margin: 1rem 0;"><h4 style="margin: 0 0 1rem 0; color: #1E293B; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>语音输入设置指南</h4><div style="margin-bottom: 1rem;"><p style="color: #64748B; margin: 0 0 0.75rem 0; font-size: 0.9rem; font-weight: 500;">第一步：下载豆包输入法</p><div style="display: flex; flex-wrap: wrap; gap: 0.5rem;"><span style="background: #F1F5F9; color: #475569; padding: 0.375rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">iOS: App Store 搜索「豆包输入法」</span><span style="background: #F1F5F9; color: #475569; padding: 0.375rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">Android: 应用商店搜索「豆包输入法」</span></div></div><div style="margin-bottom: 1rem;"><p style="color: #64748B; margin: 0 0 0.5rem 0; font-size: 0.9rem; font-weight: 500;">电脑端访问：</p><a href="https://www.doubao.com/" target="_blank" rel="noopener noreferrer" style="color: #0D9488; text-decoration: none; font-size: 0.9rem;">https://www.doubao.com/</a></div><div style="margin-bottom: 1rem;"><p style="color: #64748B; margin: 0 0 0.5rem 0; font-size: 0.9rem; font-weight: 500;">第二步：设为默认输入法</p><p style="color: #475569; margin: 0; font-size: 0.85rem;">在手机设置中将豆包输入法设为默认，或在电脑上切换到豆包输入法。</p></div><div style="background: #F0FDFA; border-radius: 8px; padding: 0.75rem; margin-top: 1rem;"><p style="color: #0F766E; margin: 0; font-size: 0.85rem; line-height: 1.6;"><strong>第三步：开始语音输入</strong><br>点击输入框，然后点击键盘上的麦克风图标或长按说话，语音将自动转为文字填入输入框。<br>支持普通话、粤语、四川话等多种方言。</p></div></div>"""
+    html_content = """<div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 1.5rem; margin: 1rem 0;"><h4 style="margin: 0 0 1rem 0; color: #1E293B; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>语音输入设置指南</h4><div style="margin-bottom: 1rem;"><p style="color: #64748B; margin: 0 0 0.75rem 0; font-size: 0.9rem; font-weight: 500;">手机端：下载豆包输入法</p><div style="display: flex; flex-wrap: wrap; gap: 0.5rem;"><span style="background: #F1F5F9; color: #475569; padding: 0.375rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">iOS: App Store 搜索「豆包输入法」</span><span style="background: #F1F5F9; color: #475569; padding: 0.375rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">Android: 应用商店搜索「豆包输入法」</span></div></div><div style="margin-bottom: 1rem;"><p style="color: #64748B; margin: 0 0 0.5rem 0; font-size: 0.9rem; font-weight: 500;">电脑端：使用闪电说</p><a href="https://shandianshuo.cn/" target="_blank" rel="noopener noreferrer" style="color: #0D9488; text-decoration: none; font-size: 0.9rem;">https://shandianshuo.cn/</a></div><div style="margin-bottom: 1rem;"><p style="color: #64748B; margin: 0 0 0.5rem 0; font-size: 0.9rem; font-weight: 500;">设置为默认输入法</p><p style="color: #475569; margin: 0; font-size: 0.85rem;">手机：在设置中将豆包输入法设为默认<br>电脑：安装闪电说后按快捷键激活语音输入</p></div><div style="background: #F0FDFA; border-radius: 8px; padding: 0.75rem; margin-top: 1rem;"><p style="color: #0F766E; margin: 0; font-size: 0.85rem; line-height: 1.6;"><strong>开始语音输入</strong><br>点击输入框，然后点击麦克风图标或长按说话，语音将自动转为文字。<br>支持普通话、粤语、四川话等多种方言。</p></div></div>"""
     st.markdown(html_content, unsafe_allow_html=True)
 
 
@@ -100,7 +100,7 @@ def render_voice_input_reminder():
             <line x1="12" x2="12" y1="19" y2="22"/>
         </svg>
         <span style="color: #92400E; font-size: 0.85rem; font-weight: 500;">
-            仅支持语音输入 - 请使用豆包输入法长按说话
+            仅支持语音输入 - 手机用豆包输入法，电脑用闪电说
         </span>
     </div>
     """, unsafe_allow_html=True)
