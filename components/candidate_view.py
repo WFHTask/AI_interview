@@ -117,8 +117,8 @@ def render_candidate_welcome(
         )
 
     # Resume upload section
-    st.markdown("### 上传简历 (可选)")
-    st.caption("上传简历可以让面试官更好地了解您，进行更有针对性的提问")
+    st.markdown("### 上传简历 *")
+    st.caption("请上传您的简历，面试官将根据简历内容进行针对性提问")
 
     # Resume upload tabs (using text labels instead of emoji per style guide)
     resume_tab1, resume_tab2 = st.tabs(["上传文件", "粘贴文本"])
@@ -196,6 +196,7 @@ def render_candidate_welcome(
 
     # Get resume summary from session if available
     final_resume_summary = st.session_state.get("resume_summary", "")
+    has_resume = bool(st.session_state.get("parsed_resume"))
 
     # Voice input guidance
     render_voice_input_guide()
@@ -232,7 +233,7 @@ def render_candidate_welcome(
         email_valid, email_error = validate_email(candidate_email)
 
     # Check if can start
-    can_start = name_valid and email_valid
+    can_start = name_valid and email_valid and has_resume
 
     # Show validation errors
     if candidate_name and not name_valid and name_error:
@@ -240,6 +241,9 @@ def render_candidate_welcome(
 
     if candidate_email and not email_valid and email_error:
         validation_errors.append(f"邮箱: {email_error}")
+
+    if not has_resume:
+        validation_errors.append("请先上传并解析简历")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -259,9 +263,9 @@ def render_candidate_welcome(
     # Show validation messages
     if validation_errors:
         for error in validation_errors:
-            st.error(error)
+            st.warning(error)
     elif not candidate_name:
-        st.caption("请填写您的姓名后开始面试")
+        st.caption("请填写姓名并上传简历后开始面试")
 
 
 def _render_resume_preview(resume_data: Dict[str, Any]):
