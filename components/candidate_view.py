@@ -10,7 +10,7 @@ Features:
 - Interview progress tracking
 """
 import streamlit as st
-from typing import Optional, Callable, Dict, Any
+from typing import Optional, Callable
 
 from components.styles import icon, MAIN_CSS
 from components.voice_input_guide import (
@@ -134,13 +134,10 @@ def render_candidate_welcome(
 
     # Resume upload section
     st.markdown("### 上传简历 *")
-    st.caption("请上传您的简历，面试官将根据简历内容进行针对性提问")
+    st.caption("支持 PDF 或图片格式，面试官将根据简历内容进行针对性提问")
 
-    # Resume upload tabs (using text labels instead of emoji per style guide)
+    # Resume upload tabs
     resume_tab1, resume_tab2 = st.tabs(["上传文件", "粘贴文本"])
-
-    resume_data = None
-    resume_summary = ""
 
     with resume_tab1:
         uploaded_file = st.file_uploader(
@@ -151,36 +148,14 @@ def render_candidate_welcome(
         )
 
         if uploaded_file is not None:
-            # Show file info
             file_size_mb = uploaded_file.size / (1024 * 1024)
-            st.info(f"已选择: {uploaded_file.name} ({file_size_mb:.1f} MB)")
-
-            # Parse resume button
-            if st.button("解析简历", key="parse_resume_file_btn"):
-                with st.spinner("正在解析简历，请稍候..."):
-                    try:
-                        from services.resume_service import parse_resume, get_resume_summary
-
-                        file_bytes = uploaded_file.read()
-                        mime_type = uploaded_file.type
-
-                        resume_data = parse_resume(file_data=file_bytes, mime_type=mime_type)
-                        resume_summary = get_resume_summary(resume_data)
-
-                        # Store in session state
-                        st.session_state.parsed_resume = resume_data
-                        st.session_state.resume_summary = resume_summary
-                        # Store file data for later saving (after interview starts)
-                        st.session_state.resume_file_data = file_bytes
-                        st.session_state.resume_file_name = uploaded_file.name
-
-                        st.success("简历解析成功！")
-                    except Exception as e:
-                        st.error(f"简历解析失败: {str(e)}")
-
-            # Show parsed resume preview
-            if st.session_state.get("parsed_resume"):
-                _render_resume_preview(st.session_state.parsed_resume)
+            st.success(f"已选择: {uploaded_file.name} ({file_size_mb:.1f} MB)")
+            # Store file data for later use
+            st.session_state.resume_file_data = uploaded_file.read()
+            st.session_state.resume_file_name = uploaded_file.name
+            st.session_state.resume_file_type = uploaded_file.type
+            # Reset file position for potential re-read
+            uploaded_file.seek(0)
 
     with resume_tab2:
         resume_text = st.text_area(
@@ -191,37 +166,16 @@ def render_candidate_welcome(
         )
 
         if resume_text and len(resume_text.strip()) > 50:
-            if st.button("解析简历", key="parse_resume_text_btn"):
-                with st.spinner("正在解析简历，请稍候..."):
-                    try:
-                        from services.resume_service import parse_resume, get_resume_summary
+            st.success("简历内容已填写")
 
-                        resume_data = parse_resume(text=resume_text)
-                        resume_summary = get_resume_summary(resume_data)
-
-                        st.session_state.parsed_resume = resume_data
-                        st.session_state.resume_summary = resume_summary
-
-                        st.success("简历解析成功！")
-                    except Exception as e:
-                        st.error(f"简历解析失败: {str(e)}")
-
-            # Show parsed resume preview
-            if st.session_state.get("parsed_resume"):
-                _render_resume_preview(st.session_state.parsed_resume)
-
-    # Get resume summary from session if available, or use raw text
-    final_resume_summary = st.session_state.get("resume_summary", "")
-
-    # Check if resume is available: either parsed or raw text input
-    has_parsed_resume = bool(st.session_state.get("parsed_resume"))
+    # Check if resume is available
+    has_file_resume = st.session_state.get("resume_file_data") is not None
     raw_resume_text = st.session_state.get("resume_text_input", "")
-    has_raw_text = bool(raw_resume_text and len(raw_resume_text.strip()) > 50)
-    has_resume = has_parsed_resume or has_raw_text
+    has_text_resume = bool(raw_resume_text and len(raw_resume_text.strip()) > 50)
+    has_resume = has_file_resume or has_text_resume
 
-    # If no parsed resume but has raw text, use raw text as summary
-    if not final_resume_summary and has_raw_text:
-        final_resume_summary = raw_resume_text.strip()
+    # Get resume content for prompt (text only, file will be handled separately)
+    final_resume_summary = raw_resume_text.strip() if has_text_resume else ""
 
     # Voice input guidance
     render_voice_input_guide()
@@ -304,50 +258,7 @@ def render_candidate_welcome(
         for error in validation_errors:
             st.warning(error)
     elif not candidate_name:
-        st.caption("请填写信息并解析简历后开始面试")
-
-
-def _render_resume_preview(resume_data: Dict[str, Any]):
-    """
-    Render parsed resume preview
-
-    Args:
-        resume_data: Parsed resume data dict
-    """
-    file_icon = icon("file-text", size=20, color="#0D9488")
-
-    with st.expander("📋 简历解析结果", expanded=True):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if resume_data.get("name") and resume_data["name"] != "Unknown":
-                st.markdown(f"**姓名:** {resume_data['name']}")
-            if resume_data.get("current_position"):
-                st.markdown(f"**当前职位:** {resume_data['current_position']}")
-            if resume_data.get("current_company"):
-                st.markdown(f"**当前公司:** {resume_data['current_company']}")
-            if resume_data.get("years_of_experience"):
-                st.markdown(f"**工作年限:** {resume_data['years_of_experience']}年")
-
-        with col2:
-            if resume_data.get("education"):
-                st.markdown(f"**学历:** {resume_data['education']}")
-            if resume_data.get("email"):
-                st.markdown(f"**邮箱:** {resume_data['email']}")
-            if resume_data.get("phone"):
-                st.markdown(f"**电话:** {resume_data['phone']}")
-
-        if resume_data.get("skills"):
-            skills_str = ", ".join(resume_data["skills"][:10])
-            st.markdown(f"**技能:** {skills_str}")
-
-        if resume_data.get("highlights"):
-            st.markdown("**核心亮点:**")
-            for h in resume_data["highlights"][:3]:
-                st.markdown(f"- {h}")
-
-        if resume_data.get("summary"):
-            st.markdown(f"**摘要:** {resume_data['summary']}")
+        st.caption("请填写信息并上传简历后开始面试")
 
 
 def render_candidate_chat_header(job_title: str = "", turn_count: int = 0, max_turns: int = 50, test_mode: bool = False):

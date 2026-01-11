@@ -188,14 +188,12 @@ def start_interview_for_candidate(
         st.session_state.candidate_email = candidate_email
 
         # Clear resume session state after interview starts
-        if "parsed_resume" in st.session_state:
-            del st.session_state.parsed_resume
-        if "resume_summary" in st.session_state:
-            del st.session_state.resume_summary
         if "resume_file_data" in st.session_state:
             del st.session_state.resume_file_data
         if "resume_file_name" in st.session_state:
             del st.session_state.resume_file_name
+        if "resume_file_type" in st.session_state:
+            del st.session_state.resume_file_type
 
         # SECURITY: Store only safe subset of job config for candidate view
         # Full config is only used internally, not exposed

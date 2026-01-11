@@ -785,63 +785,78 @@ def render_history_tab():
     if st.session_state.get("_show_export_dialog"):
         st.markdown("---")
         st.markdown("**批量导出设置**")
+        st.caption("导出的文件将打包成 ZIP 压缩包下载")
+
+        # 筛选方式选择（二选一）
+        filter_mode = st.radio(
+            "筛选方式",
+            ["按日期", "按等级"],
+            horizontal=True,
+            key="export_filter_mode"
+        )
 
         exp_col1, exp_col2 = st.columns(2)
-        with exp_col1:
-            # 日期选择
-            from datetime import datetime, timedelta
-            today = datetime.now().date()
-            exp_date = st.date_input(
-                "选择日期",
-                value=today,
-                max_value=today,
-                min_value=today - timedelta(days=90),
-                key="export_date"
-            )
-        with exp_col2:
-            exp_grade = st.selectbox("导出等级", ["全部", "S", "A", "B", "C"], key="export_grade")
 
-        exp_col3, exp_col4, exp_col5 = st.columns(3)
+        if filter_mode == "按日期":
+            with exp_col1:
+                from datetime import datetime, timedelta
+                today = datetime.now().date()
+                exp_date = st.date_input(
+                    "选择日期",
+                    value=today,
+                    max_value=today,
+                    min_value=today - timedelta(days=90),
+                    key="export_date"
+                )
+            with exp_col2:
+                exp_format = st.selectbox("导出格式", ["JSON", "HTML", "全部"], key="export_format_date")
+        else:
+            with exp_col1:
+                exp_grade_only = st.selectbox("选择等级", ["S", "A", "B", "C"], key="export_grade_only")
+            with exp_col2:
+                exp_format = st.selectbox("导出格式", ["JSON", "HTML", "全部"], key="export_format_grade")
+
+        # 导出按钮
+        exp_col3, exp_col4 = st.columns(2)
         with exp_col3:
-            if st.button("导出 JSON", use_container_width=True, key="batch_json"):
-                with st.spinner("生成中..."):
-                    grade_val = None if exp_grade == "全部" else exp_grade
-                    date_str = exp_date.strftime("%Y-%m-%d")
-                    json_data = storage_service.export_sessions_by_date_json(date_str=date_str, grade_filter=grade_val)
-                    st.session_state._batch_export_data = json_data
-                    st.session_state._batch_export_format = "json"
-                    st.session_state._batch_export_date = date_str
+            if st.button("导出 ZIP", use_container_width=True, key="batch_zip", type="primary"):
+                with st.spinner("正在打包..."):
+                    # 确定导出格式
+                    format_map = {"JSON": "json", "HTML": "html", "全部": "both"}
+                    format_label = {"JSON": "JSON", "HTML": "HTML", "全部": "ALL"}
+                    export_fmt = format_map.get(exp_format, "both")
+                    fmt_label = format_label.get(exp_format, "ALL")
+
+                    if filter_mode == "按日期":
+                        date_str = exp_date.strftime("%Y-%m-%d")
+                        zip_data = storage_service.export_sessions_by_date_zip(
+                            date_str=date_str,
+                            export_format=export_fmt
+                        )
+                        st.session_state._batch_export_filename = f"voiverse_{date_str}_{fmt_label}.zip"
+                    else:
+                        zip_data = storage_service.export_sessions_by_grade_zip(
+                            grade=exp_grade_only,
+                            days=30,
+                            export_format=export_fmt
+                        )
+                        st.session_state._batch_export_filename = f"voiverse_{exp_grade_only}级_30天_{fmt_label}.zip"
+
+                    st.session_state._batch_export_data = zip_data
                     st.session_state._show_export_dialog = False
                     st.rerun()
         with exp_col4:
-            if st.button("导出 HTML", use_container_width=True, key="batch_html"):
-                with st.spinner("生成中..."):
-                    grade_val = None if exp_grade == "全部" else exp_grade
-                    date_str = exp_date.strftime("%Y-%m-%d")
-                    html_data = storage_service.export_sessions_by_date_html(date_str=date_str, grade_filter=grade_val)
-                    st.session_state._batch_export_data = html_data
-                    st.session_state._batch_export_format = "html"
-                    st.session_state._batch_export_date = date_str
-                    st.session_state._show_export_dialog = False
-                    st.rerun()
-        with exp_col5:
             if st.button("取消", use_container_width=True, key="cancel_batch"):
                 st.session_state._show_export_dialog = False
                 st.rerun()
 
     # 显示批量导出下载按钮
     if st.session_state.get("_batch_export_data"):
-        fmt = st.session_state.get("_batch_export_format", "json")
-        date_str = st.session_state.get("_batch_export_date", "export")
-        filename = f"voiverse_{date_str}"
-        if fmt == "json":
-            st.download_button(f"⬇ 下载 {date_str}.json", st.session_state._batch_export_data, f"{filename}.json", "application/json", use_container_width=True)
-        else:
-            st.download_button(f"⬇ 下载 {date_str}.html", st.session_state._batch_export_data, f"{filename}.html", "text/html", use_container_width=True)
+        filename = st.session_state.get("_batch_export_filename", "voiverse_export.zip")
+        st.download_button(f"⬇ 下载 {filename}", st.session_state._batch_export_data, filename, "application/zip", use_container_width=True)
         if st.button("关闭", key="close_batch_download"):
             st.session_state._batch_export_data = None
-            st.session_state._batch_export_format = None
-            st.session_state._batch_export_date = None
+            st.session_state._batch_export_filename = None
             st.rerun()
 
     # Get sessions (使用缓存，根据选择的天数)
@@ -851,129 +866,240 @@ def render_history_tab():
         sessions = _get_cached_recent_sessions(days=days, grade_filter=grade_filter)
 
     if not sessions:
-        st.info("暂无面试记录")
+        st.markdown(f"""
+        <div style="text-align: center; padding: 3rem 1rem; color: #64748B;">
+            {icon("inbox", 48, "#CBD5E1")}
+            <p style="margin-top: 1rem; font-size: 1rem;">暂无面试记录</p>
+            <p style="font-size: 0.875rem; color: #94A3B8;">面试完成后将在这里显示</p>
+        </div>
+        """, unsafe_allow_html=True)
         return
 
-    # 使用 Streamlit 原生组件渲染每条记录（支持交互按钮）
+    # 分页逻辑
+    page_size = 20
+    total_pages = (len(sessions) + page_size - 1) // page_size
+    current_page = st.session_state.get("_history_page", 1)
+    if current_page > total_pages:
+        current_page = 1
+    start_idx = (current_page - 1) * page_size
+    end_idx = min(start_idx + page_size, len(sessions))
+    page_sessions = sessions[start_idx:end_idx]
+
+    # 注入卡片样式
+    st.markdown("""
+    <style>
+    /* 外层滚动容器样式 - 应用于 st.container */
+    div[data-testid="stVerticalBlock"]:has(> div.iv-card-wrap) {
+        background: #CCFBF1;
+        border-radius: 16px;
+        border: 1px solid #E2E8F0;
+        padding: 1rem;
+        max-height: 550px;
+        overflow-y: auto;
+    }
+    .iv-card-wrap {
+        background: white;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        border: 1px solid #E2E8F0;
+        transition: all 0.2s ease;
+    }
+    .iv-card-wrap:hover {
+        border-color: #0D9488;
+        box-shadow: 0 2px 8px rgba(13, 148, 136, 0.08);
+    }
+    .iv-card-wrap.s-tier {
+        border-left: 4px solid #F59E0B;
+        background: linear-gradient(90deg, #FFFBEB 0%, #F8FAFC 15%);
+    }
+    .iv-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .iv-name {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0F172A;
+    }
+    .iv-meta {
+        font-size: 0.75rem;
+        color: #64748B;
+    }
+    .iv-contacts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.4rem;
+    }
+    .iv-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.15rem 0.4rem;
+        background: white;
+        border: 1px solid #E2E8F0;
+        border-radius: 5px;
+        font-size: 0.7rem;
+        color: #0F766E;
+        cursor: text;
+        user-select: all;
+        -webkit-user-select: all;
+    }
+    .iv-chip:hover {
+        background: #CCFBF1;
+        border-color: #0D9488;
+    }
+    .iv-grade {
+        padding: 0.2rem 0.5rem;
+        border-radius: 5px;
+        font-weight: 600;
+        font-size: 0.7rem;
+        white-space: nowrap;
+        display: inline-block;
+        margin-top: 0.25rem;
+    }
+    .iv-grade.S { background: linear-gradient(135deg, #FCD34D, #F59E0B); color: #78350F; }
+    .iv-grade.A { background: linear-gradient(135deg, #6EE7B7, #10B981); color: #064E3B; }
+    .iv-grade.B { background: linear-gradient(135deg, #93C5FD, #3B82F6); color: #1E3A8A; }
+    .iv-grade.C { background: linear-gradient(135deg, #FCA5A5, #EF4444); color: #7F1D1D; }
+    .iv-grade.pending { background: #F1F5F9; color: #64748B; }
+    /* 让卡片内按钮更小更紧凑 */
+    .iv-card-wrap .stButton > button {
+        padding: 0.1rem 0.3rem !important;
+        font-size: 0.6rem !important;
+        min-height: 0 !important;
+        height: 20px !important;
+        line-height: 1 !important;
+        border-radius: 4px !important;
+    }
+    .iv-card-wrap .stLinkButton > a {
+        padding: 0.1rem 0.3rem !important;
+        font-size: 0.6rem !important;
+        min-height: 0 !important;
+        height: 20px !important;
+        line-height: 1 !important;
+        border-radius: 4px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     base_url = os.getenv("APP_BASE_URL", "http://localhost:8501")
 
-    for idx, s in enumerate(sessions[:20]):  # 限制数量
-        grade = s.get("grade")
-        score = s.get("score")
-        is_s = s.get("is_s_tier", False)
-        session_id = s.get("session_id", "")
-        candidate_name = s.get('candidate_name', 'Unknown')
+    # 外层滚动容器
+    with st.container(height=550, border=True):
+        for s in page_sessions:
+            grade = s.get("grade")
+            score = s.get("score")
+            is_s = s.get("is_s_tier", False)
+            session_id = s.get("session_id", "")
+            candidate_name = s.get('candidate_name', 'Unknown')
+            detail_url = f"{base_url}/?session={session_id}"
+            date_str = s.get('date', '')
 
-        # Grade badge HTML
-        if grade:
-            colors = {"S": ("#F59E0B", "#FEF3C7"), "A": ("#10B981", "#ECFDF5"), "B": ("#3B82F6", "#EFF6FF"), "C": ("#EF4444", "#FEF2F2")}
-            fg, bg = colors.get(grade, ("#6B7280", "#F3F4F6"))
-            score_txt = f" · {score}分" if score else ""
-            badge_html = f'<span style="background: {bg}; color: {fg}; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">{grade}级{score_txt}</span>'
-        else:
-            badge_html = '<span style="background: #F3F4F6; color: #6B7280; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem;">待评估</span>'
+            # 等级
+            if grade:
+                grade_class = grade
+                grade_text = f"{grade}级 · {score}分" if score else f"{grade}级"
+            else:
+                grade_class = "pending"
+                grade_text = "待评估"
 
-        border_color = "#F59E0B" if is_s else "#E2E8F0"
-        detail_url = f"{base_url}/?session={session_id}"
+            # 联系方式
+            phone = s.get('candidate_phone', '')
+            email = s.get('candidate_email', '')
+            wechat = s.get('candidate_wechat', '')
 
-        # 获取联系方式
-        phone = s.get('candidate_phone', '')
-        email = s.get('candidate_email', '')
-        wechat = s.get('candidate_wechat', '')
+            contact_chips = []
+            if phone:
+                contact_chips.append(f'<span class="iv-chip">{icon("phone", 10, "#0F766E")} {phone}</span>')
+            if wechat:
+                contact_chips.append(f'<span class="iv-chip">{icon("message-circle", 10, "#0F766E")} {wechat}</span>')
+            if email:
+                contact_chips.append(f'<span class="iv-chip">{icon("mail", 10, "#0F766E")} {email}</span>')
+            contact_html = "".join(contact_chips) if contact_chips else '<span style="color: #94A3B8; font-size: 0.7rem;">暂无联系方式</span>'
 
-        # 构建联系方式HTML（可点击复制，使用SVG图标）
-        contact_items = []
-        if phone:
-            phone_icon = icon("phone", 14, "#0D9488")
-            contact_items.append(f'<span class="contact-item" onclick="navigator.clipboard.writeText(\'{phone}\');this.style.color=\'#059669\';setTimeout(()=>this.style.color=\'#0D9488\',1000)" title="点击复制">{phone_icon} {phone}</span>')
-        if email:
-            mail_icon = icon("mail", 14, "#0D9488")
-            contact_items.append(f'<span class="contact-item" onclick="navigator.clipboard.writeText(\'{email}\');this.style.color=\'#059669\';setTimeout(()=>this.style.color=\'#0D9488\',1000)" title="点击复制">{mail_icon} {email}</span>')
-        if wechat:
-            wechat_icon = icon("wechat", 14, "#0D9488")
-            contact_items.append(f'<span class="contact-item" onclick="navigator.clipboard.writeText(\'{wechat}\');this.style.color=\'#059669\';setTimeout(()=>this.style.color=\'#0D9488\',1000)" title="点击复制">{wechat_icon} {wechat}</span>')
-        contact_html = ' <span style="color:#CBD5E1;">|</span> '.join(contact_items) if contact_items else '<span style="color:#94A3B8;">-</span>'
+            card_class = "iv-card-wrap s-tier" if is_s else "iv-card-wrap"
 
-        # 每条记录一个容器
-        with st.container():
-            # 信息行 + 操作按钮行
-            col_info, col_actions = st.columns([3, 2])
+            # 用 container + columns 实现卡片内按钮
+            with st.container():
+                st.markdown(f'<div class="{card_class}">', unsafe_allow_html=True)
 
-            with col_info:
-                st.markdown(f'''
-                <style>
-                .contact-item {{
-                    color: #0D9488;
-                    cursor: pointer;
-                    transition: color 0.2s;
-                }}
-                .contact-item:hover {{
-                    color: #0F766E;
-                    text-decoration: underline;
-                }}
-                </style>
-                <div style="border-left: 4px solid {border_color}; padding-left: 0.75rem;">
-                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                        <span style="font-weight: 700; font-size: 1rem; color: #0F172A;">{candidate_name}</span>
-                        {badge_html}
+                cols = st.columns([4, 1, 1, 1, 1, 1.5])
+
+                with cols[0]:
+                    st.markdown(f'''
+                    <div class="iv-info">
+                        <div class="iv-name">{candidate_name}</div>
+                        <div class="iv-meta">{icon("calendar", 10, "#94A3B8")} {date_str} · {icon("message-circle", 10, "#94A3B8")} {s.get('turn_count', 0)}轮</div>
+                        <div class="iv-contacts">{contact_html}</div>
                     </div>
-                    <div style="color: #64748B; font-size: 0.75rem; margin-top: 0.25rem;">
-                        {s.get('date', '')} · {s.get('turn_count', 0)} 轮对话
-                    </div>
-                    <div style="font-size: 0.8rem; margin-top: 0.25rem;">
-                        {contact_html}
-                    </div>
-                </div>
-                ''', unsafe_allow_html=True)
+                    ''', unsafe_allow_html=True)
 
-            with col_actions:
-                btn_cols = st.columns(4)
-                with btn_cols[0]:
+                with cols[1]:
                     st.link_button("详情", detail_url, use_container_width=True)
-                with btn_cols[1]:
-                    if st.button("JSON", key=f"json_{session_id}", use_container_width=True):
+
+                with cols[2]:
+                    if st.button("JSON", key=f"j_{session_id}", use_container_width=True):
                         data = storage_service.export_single_session_json(session_id)
                         if data:
                             st.session_state._single_export_data = data
                             st.session_state._single_export_format = "json"
                             st.session_state._single_export_name = candidate_name
                             st.rerun()
-                with btn_cols[2]:
-                    if st.button("HTML", key=f"html_{session_id}", use_container_width=True):
+
+                with cols[3]:
+                    if st.button("HTML", key=f"h_{session_id}", use_container_width=True):
                         data = storage_service.export_single_session_html(session_id)
                         if data:
                             st.session_state._single_export_data = data
                             st.session_state._single_export_format = "html"
                             st.session_state._single_export_name = candidate_name
                             st.rerun()
-                with btn_cols[3]:
-                    if st.button("删除", key=f"del_{session_id}", use_container_width=True):
+
+                with cols[4]:
+                    if st.button("删除", key=f"d_{session_id}", use_container_width=True):
                         st.session_state._confirm_del_session = session_id
                         st.session_state._confirm_del_name = candidate_name
-                        st.session_state._confirm_del_date = s.get('date', '')
+                        st.session_state._confirm_del_date = date_str
 
-            # 单条删除确认
-            if st.session_state.get("_confirm_del_session") == session_id:
-                st.warning(f"确定删除 {candidate_name} 的面试记录？")
-                cc1, cc2 = st.columns(2)
-                with cc1:
-                    if st.button("确定删除", key=f"yes_del_{session_id}"):
-                        date_str = st.session_state.get("_confirm_del_date", "")
-                        storage_service.delete_session_by_date_str(session_id, date_str)
-                        st.session_state._confirm_del_session = None
-                        st.session_state._confirm_del_name = None
-                        st.session_state._confirm_del_date = None
-                        _clear_all_caches()
-                        st.toast(f"已删除 {candidate_name}")
-                        st.rerun()
-                with cc2:
-                    if st.button("取消", key=f"no_del_{session_id}"):
-                        st.session_state._confirm_del_session = None
-                        st.session_state._confirm_del_name = None
-                        st.session_state._confirm_del_date = None
-                        st.rerun()
+                with cols[5]:
+                    st.markdown(f'<span class="iv-grade {grade_class}">{grade_text}</span>', unsafe_allow_html=True)
 
-            st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                # 删除确认
+                if st.session_state.get("_confirm_del_session") == session_id:
+                    st.warning(f"确定删除 {candidate_name}？")
+                    dc1, dc2, dc3 = st.columns([1, 1, 4])
+                    with dc1:
+                        if st.button("确定", key=f"yd_{session_id}", type="primary"):
+                            storage_service.delete_session_by_date_str(session_id, date_str)
+                            st.session_state._confirm_del_session = None
+                            _clear_all_caches()
+                            st.toast(f"已删除 {candidate_name}")
+                            st.rerun()
+                    with dc2:
+                        if st.button("取消", key=f"nd_{session_id}"):
+                            st.session_state._confirm_del_session = None
+                            st.rerun()
+
+    # 分页控制
+    if total_pages > 1:
+        page_cols = st.columns([1, 2, 1])
+        with page_cols[0]:
+            if current_page > 1:
+                if st.button("← 上一页", key="prev_page", use_container_width=True):
+                    st.session_state._history_page = current_page - 1
+                    st.rerun()
+        with page_cols[1]:
+            st.markdown(f"<div style='text-align: center; color: #64748B; font-size: 0.85rem; padding: 0.5rem;'>第 {current_page} / {total_pages} 页 · 共 {len(sessions)} 条</div>", unsafe_allow_html=True)
+        with page_cols[2]:
+            if current_page < total_pages:
+                if st.button("下一页 →", key="next_page", use_container_width=True):
+                    st.session_state._history_page = current_page + 1
+                    st.rerun()
 
     # 单条记录下载按钮（点击记录上的导出按钮后显示）
     if st.session_state.get("_single_export_data"):
@@ -1112,14 +1238,29 @@ def render_admin_dashboard():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 使用 radio 替代 tabs，通过 key 自动保持状态
+    # 使用 URL 参数保持 tab 状态（刷新后不丢失）
+    tab_options = ["岗位配置", "面试历史", "设置"]
+    tab_map = {"config": 0, "history": 1, "settings": 2}
+    tab_map_reverse = {0: "config", 1: "history", 2: "settings"}
+
+    # 从 URL 读取当前 tab
+    current_tab_param = st.query_params.get("tab", "config")
+    default_index = tab_map.get(current_tab_param, 0)
+
     selected_tab = st.radio(
         "导航",
-        ["岗位配置", "面试历史", "设置"],
+        tab_options,
+        index=default_index,
         horizontal=True,
         key="_current_tab",
         label_visibility="collapsed"
     )
+
+    # 更新 URL 参数
+    new_tab_index = tab_options.index(selected_tab)
+    new_tab_param = tab_map_reverse[new_tab_index]
+    if st.query_params.get("tab") != new_tab_param:
+        st.query_params["tab"] = new_tab_param
 
     st.markdown("---")
 
@@ -1150,8 +1291,7 @@ def init_admin_dashboard_state():
         "_confirm_clear": None,
         "_show_export_dialog": False,
         "_batch_export_data": None,
-        "_batch_export_format": None,
-        "_batch_export_date": None,
+        "_batch_export_filename": None,
         "_single_export_data": None,
         "_single_export_format": None,
         "_single_export_name": None,
