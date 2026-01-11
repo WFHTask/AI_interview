@@ -50,11 +50,14 @@ def render_candidate_info(
     session: InterviewSession,
     evaluation: Optional[EvaluationResult] = None
 ):
-    """Render candidate information card"""
+    """Render candidate information card with copyable contact info"""
     user_icon = icon("user", size=20, color="#0D9488")
+    copy_icon = icon("clipboard", size=14, color="#0D9488")
 
     candidate_name = evaluation.candidate_name if evaluation else session.candidate_name or "Unknown"
     candidate_email = session.candidate_email or "未提供"
+    candidate_phone = session.candidate_phone or "未提供"
+    candidate_wechat = session.candidate_wechat or "未提供"
 
     # Check for resume file
     resume_info_html = ""
@@ -75,6 +78,9 @@ def render_candidate_info(
         </div>
             """
 
+    # Copyable contact style
+    copyable_style = "color: #1E293B; margin: 0; cursor: pointer; user-select: all;"
+
     st.markdown(f"""
 <div style="
     background: white;
@@ -92,8 +98,16 @@ def render_candidate_info(
             <p style="color: #1E293B; margin: 0; font-weight: 600;">{candidate_name}</p>
         </div>
         <div>
-            <p style="color: #64748B; margin: 0 0 0.25rem 0; font-size: 0.875rem;">邮箱</p>
-            <p style="color: #1E293B; margin: 0;">{candidate_email}</p>
+            <p style="color: #64748B; margin: 0 0 0.25rem 0; font-size: 0.875rem;">邮箱 <span style="font-size: 0.7rem; color: #94A3B8;">(点击复制)</span></p>
+            <p style="{copyable_style}" onclick="navigator.clipboard.writeText('{candidate_email}')" title="点击复制">{candidate_email}</p>
+        </div>
+        <div>
+            <p style="color: #64748B; margin: 0 0 0.25rem 0; font-size: 0.875rem;">手机号 <span style="font-size: 0.7rem; color: #94A3B8;">(点击复制)</span></p>
+            <p style="{copyable_style}" onclick="navigator.clipboard.writeText('{candidate_phone}')" title="点击复制">{candidate_phone}</p>
+        </div>
+        <div>
+            <p style="color: #64748B; margin: 0 0 0.25rem 0; font-size: 0.875rem;">微信号 <span style="font-size: 0.7rem; color: #94A3B8;">(点击复制)</span></p>
+            <p style="{copyable_style}" onclick="navigator.clipboard.writeText('{candidate_wechat}')" title="点击复制">{candidate_wechat}</p>
         </div>
         <div>
             <p style="color: #64748B; margin: 0 0 0.25rem 0; font-size: 0.875rem;">面试时间</p>

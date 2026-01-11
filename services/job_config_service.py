@@ -36,8 +36,15 @@ class JobConfig(BaseModel):
     # If empty, AI will generate a default greeting
     custom_greeting: str = ""
 
+    # Custom AI prompt (optional)
+    # If empty, use default prompt from core/prompts.py
+    custom_prompt: str = ""
+
+    # HR contact for S-tier (required)
+    hr_wechat: str = ""  # 必填，S级人才邀请使用
+
     # S-tier configuration
-    s_tier_invitation: str = "请直接添加 CTO 微信进行沟通"
+    s_tier_invitation: str = "恭喜您通过面试！请添加以下微信进行后续沟通"
     s_tier_link: str = ""
 
     # Notification
@@ -253,6 +260,8 @@ class JobConfigService:
         job_description: str,
         job_title: str = "",
         custom_greeting: str = "",
+        custom_prompt: str = "",
+        hr_wechat: str = "",
         s_tier_invitation: str = "",
         s_tier_link: str = "",
         feishu_webhook: str = "",
@@ -265,8 +274,10 @@ class JobConfigService:
             job_description: Job description text
             job_title: Optional job title
             custom_greeting: Custom interviewer greeting
+            custom_prompt: Custom AI prompt
+            hr_wechat: HR WeChat for S-tier invitation
             s_tier_invitation: S-tier invitation text
-            s_tier_link: S-tier booking link
+            s_tier_link: S-tier booking link (or WeChat ID)
             feishu_webhook: Feishu webhook URL
             test_mode: Enable test mode for /stop command
 
@@ -277,8 +288,10 @@ class JobConfigService:
             job_description=job_description,
             job_title=job_title,
             custom_greeting=custom_greeting,
-            s_tier_invitation=s_tier_invitation or "请直接添加 CTO 微信进行沟通",
-            s_tier_link=s_tier_link,
+            custom_prompt=custom_prompt,
+            hr_wechat=hr_wechat,
+            s_tier_invitation=s_tier_invitation or "恭喜您通过面试！请添加以下微信进行后续沟通",
+            s_tier_link=s_tier_link or hr_wechat,
             feishu_webhook=feishu_webhook,
             test_mode=test_mode
         )
@@ -295,6 +308,8 @@ def create_job_config(
     job_description: str,
     job_title: str = "",
     custom_greeting: str = "",
+    custom_prompt: str = "",
+    hr_wechat: str = "",
     s_tier_invitation: str = "",
     s_tier_link: str = "",
     feishu_webhook: str = "",
@@ -310,6 +325,8 @@ def create_job_config(
         job_description=job_description,
         job_title=job_title,
         custom_greeting=custom_greeting,
+        custom_prompt=custom_prompt,
+        hr_wechat=hr_wechat,
         s_tier_invitation=s_tier_invitation,
         s_tier_link=s_tier_link,
         feishu_webhook=feishu_webhook,

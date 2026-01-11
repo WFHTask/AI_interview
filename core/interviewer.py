@@ -34,7 +34,8 @@ class InterviewerEngine:
         session: InterviewSession,
         custom_greeting: str = "",
         company_background: str = "",
-        test_mode: bool = False
+        test_mode: bool = False,
+        custom_prompt: str = ""
     ):
         """
         Initialize interviewer engine
@@ -45,6 +46,7 @@ class InterviewerEngine:
             custom_greeting: Custom greeting for this interview
             company_background: Company background information
             test_mode: Enable test mode (/stop triggers S-tier result)
+            custom_prompt: Custom AI prompt template
         """
         self.gemini_service = gemini_service
         self.session = session
@@ -52,6 +54,7 @@ class InterviewerEngine:
         self.custom_greeting = custom_greeting
         self.company_background = company_background
         self.test_mode = test_mode
+        self.custom_prompt = custom_prompt
 
         # Interview state
         self.is_started = False
@@ -68,7 +71,8 @@ class InterviewerEngine:
             candidate_name=self.session.candidate_name or "",
             candidate_email=self.session.candidate_email or "",
             candidate_resume=self.session.candidate_resume or "",
-            company_background=self.company_background
+            company_background=self.company_background,
+            custom_prompt=self.custom_prompt
         )
 
     def start_interview(self) -> Generator[str, None, str]:
@@ -253,6 +257,7 @@ def create_interviewer(
     custom_greeting: str = "",
     company_background: str = "",
     test_mode: bool = False,
+    custom_prompt: str = "",
     api_key: str = None
 ) -> tuple[InterviewerEngine, InterviewSession]:
     """
@@ -268,6 +273,7 @@ def create_interviewer(
         custom_greeting: Custom interviewer greeting (optional)
         company_background: Company background information (optional)
         test_mode: Enable test mode (/stop triggers S-tier result)
+        custom_prompt: Custom AI prompt template (optional)
         api_key: Optional Gemini API key
 
     Returns:
@@ -292,7 +298,8 @@ def create_interviewer(
         session=session,
         custom_greeting=custom_greeting,
         company_background=company_background,
-        test_mode=test_mode
+        test_mode=test_mode,
+        custom_prompt=custom_prompt
     )
 
     return engine, session
@@ -303,6 +310,7 @@ def restore_interviewer(
     custom_greeting: str = "",
     company_background: str = "",
     test_mode: bool = False,
+    custom_prompt: str = "",
     api_key: str = None
 ) -> InterviewerEngine:
     """
@@ -313,6 +321,7 @@ def restore_interviewer(
         custom_greeting: Custom interviewer greeting (optional)
         company_background: Company background information (optional)
         test_mode: Enable test mode
+        custom_prompt: Custom AI prompt template (optional)
         api_key: Optional Gemini API key
 
     Returns:
@@ -327,7 +336,8 @@ def restore_interviewer(
         session=session,
         custom_greeting=custom_greeting,
         company_background=company_background,
-        test_mode=test_mode
+        test_mode=test_mode,
+        custom_prompt=custom_prompt
     )
 
     # Restore state flags

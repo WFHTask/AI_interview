@@ -338,6 +338,8 @@ class StorageService:
                         "session_id": data.get("session_id", "")[:12],
                         "candidate_name": data.get("candidate_name", "Unknown"),
                         "candidate_email": data.get("candidate_email", ""),
+                        "candidate_phone": data.get("candidate_phone", ""),
+                        "candidate_wechat": data.get("candidate_wechat", ""),
                         "status": data.get("status", "unknown"),
                         "turn_count": data.get("turn_count", 0),
                         "created_at": data.get("created_at", ""),
@@ -575,6 +577,559 @@ class StorageService:
                 os.remove(f)
 
         return count
+
+    def export_sessions_json(self, days: int = 7, grade_filter: str = None) -> str:
+        """
+        Export all sessions as JSON string.
+
+        Args:
+            days: Number of days to export
+            grade_filter: Filter by grade (S, A, B, C) or None for all
+
+        Returns:
+            JSON string with all session and evaluation data
+        """
+        from datetime import timedelta
+
+        export_data = {
+            "export_date": datetime.now().isoformat(),
+            "days_range": days,
+            "grade_filter": grade_filter,
+            "sessions": []
+        }
+
+        today = datetime.now().date()
+
+        for i in range(days):
+            date = today - timedelta(days=i)
+            date_str = date.strftime("%Y-%m-%d")
+            date_dir = self.base_dir / date_str
+
+            if not date_dir.exists():
+                continue
+
+            for session_file in date_dir.glob("*_session.json"):
+                try:
+                    with open(session_file, "r", encoding="utf-8") as f:
+                        session_data = json.load(f)
+
+                    # Try to load evaluation
+                    session_prefix = session_file.stem.replace("_session", "")
+                    eval_file = date_dir / f"{session_prefix}_evaluation.json"
+
+                    eval_data = None
+                    if eval_file.exists():
+                        try:
+                            with open(eval_file, "r", encoding="utf-8") as ef:
+                                eval_data = json.load(ef)
+                        except Exception:
+                            pass
+
+                    # Apply grade filter
+                    if grade_filter:
+                        session_grade = eval_data.get("decision_tier") if eval_data else None
+                        if session_grade != grade_filter:
+                            continue
+
+                    export_data["sessions"].append({
+                        "date": date_str,
+                        "session": session_data,
+                        "evaluation": eval_data
+                    })
+                except Exception:
+                    continue
+
+        return json.dumps(export_data, ensure_ascii=False, indent=2, default=str)
+
+    def export_sessions_html(self, days: int = 7, grade_filter: str = None) -> str:
+        """
+        Export all sessions as HTML string.
+
+        Args:
+            days: Number of days to export
+            grade_filter: Filter by grade (S, A, B, C) or None for all
+
+        Returns:
+            HTML string with formatted interview records
+        """
+        from datetime import timedelta
+
+        today = datetime.now().date()
+        filter_text = f" | 等级: {grade_filter}" if grade_filter else ""
+
+        html_parts = ["""
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiVerse 面试历史导出</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        h1 { color: #0D9488; border-bottom: 2px solid #0D9488; padding-bottom: 10px; }
+        .session { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .session-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .candidate-name { font-size: 1.25rem; font-weight: 600; color: #1E293B; }
+        .grade { padding: 4px 12px; border-radius: 20px; font-weight: 600; font-size: 0.875rem; }
+        .grade-S { background: linear-gradient(135deg, #FCD34D, #F59E0B); color: #78350F; }
+        .grade-A { background: linear-gradient(135deg, #34D399, #10B981); color: #064E3B; }
+        .grade-B { background: linear-gradient(135deg, #60A5FA, #3B82F6); color: #1E3A8A; }
+        .grade-C { background: linear-gradient(135deg, #F87171, #EF4444); color: #7F1D1D; }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px; }
+        .info-item { color: #64748B; font-size: 0.875rem; }
+        .info-label { font-weight: 500; color: #475569; }
+        .score { font-size: 2rem; font-weight: 700; color: #0D9488; }
+        .summary { background: #F8FAFC; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        .chat-history { margin-top: 15px; border-top: 1px solid #E2E8F0; padding-top: 15px; }
+        .message { margin-bottom: 10px; padding: 10px; border-radius: 8px; }
+        .message-user { background: #E0F2FE; margin-left: 20px; }
+        .message-model { background: #ECFDF5; margin-right: 20px; }
+        .message-role { font-weight: 600; font-size: 0.75rem; color: #64748B; margin-bottom: 4px; }
+        .strengths { color: #059669; }
+        .red-flags { color: #DC2626; }
+        .list-item { margin: 4px 0; padding-left: 16px; position: relative; }
+        .list-item::before { content: "•"; position: absolute; left: 0; }
+    </style>
+</head>
+<body>
+    <h1>VoiVerse 面试历史导出</h1>
+    <p style="color: #64748B;">导出时间: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + f""" | 数据范围: 最近 {days} 天{filter_text}</p>
+"""]
+
+        for i in range(days):
+            date = today - timedelta(days=i)
+            date_str = date.strftime("%Y-%m-%d")
+            date_dir = self.base_dir / date_str
+
+            if not date_dir.exists():
+                continue
+
+            for session_file in date_dir.glob("*_session.json"):
+                try:
+                    with open(session_file, "r", encoding="utf-8") as f:
+                        session_data = json.load(f)
+
+                    # Try to load evaluation
+                    session_prefix = session_file.stem.replace("_session", "")
+                    eval_file = date_dir / f"{session_prefix}_evaluation.json"
+
+                    eval_data = None
+                    if eval_file.exists():
+                        try:
+                            with open(eval_file, "r", encoding="utf-8") as ef:
+                                eval_data = json.load(ef)
+                        except Exception:
+                            pass
+
+                    # Apply grade filter
+                    if grade_filter:
+                        session_grade = eval_data.get("decision_tier") if eval_data else None
+                        if session_grade != grade_filter:
+                            continue
+
+                    # Build session HTML
+                    candidate_name = session_data.get("candidate_name", "Unknown")
+                    candidate_email = session_data.get("candidate_email", "")
+                    candidate_phone = session_data.get("candidate_phone", "")
+                    candidate_wechat = session_data.get("candidate_wechat", "")
+                    turn_count = session_data.get("turn_count", 0)
+                    created_at = session_data.get("created_at", "")
+
+                    grade = eval_data.get("decision_tier", "") if eval_data else ""
+                    score = eval_data.get("total_score", "") if eval_data else ""
+                    summary = eval_data.get("summary", "") if eval_data else ""
+                    strengths = eval_data.get("key_strengths", []) if eval_data else []
+                    red_flags = eval_data.get("red_flags", []) if eval_data else []
+
+                    grade_class = f"grade-{grade}" if grade else ""
+
+                    strengths_html = "".join([f'<div class="list-item">{s}</div>' for s in strengths])
+                    red_flags_html = "".join([f'<div class="list-item">{r}</div>' for r in red_flags])
+
+                    # Chat history
+                    chat_html = ""
+                    for msg in session_data.get("chat_history", []):
+                        role = msg.get("role", "")
+                        content = msg.get("content", "")
+                        role_label = "面试官" if role == "model" else "候选人"
+                        msg_class = "message-model" if role == "model" else "message-user"
+                        chat_html += f'''
+                        <div class="message {msg_class}">
+                            <div class="message-role">{role_label}</div>
+                            <div>{content}</div>
+                        </div>'''
+
+                    html_parts.append(f'''
+    <div class="session">
+        <div class="session-header">
+            <span class="candidate-name">{candidate_name}</span>
+            <span class="grade {grade_class}">{grade} {score}分</span>
+        </div>
+        <div class="info-grid">
+            <div class="info-item"><span class="info-label">邮箱:</span> {candidate_email}</div>
+            <div class="info-item"><span class="info-label">电话:</span> {candidate_phone}</div>
+            <div class="info-item"><span class="info-label">微信:</span> {candidate_wechat}</div>
+            <div class="info-item"><span class="info-label">面试时间:</span> {created_at}</div>
+            <div class="info-item"><span class="info-label">对话轮次:</span> {turn_count} 轮</div>
+        </div>
+        {f'<div class="summary"><strong>评估总结:</strong> {summary}</div>' if summary else ''}
+        <div style="display: flex; gap: 20px; margin-top: 15px;">
+            <div class="strengths" style="flex: 1;"><strong>核心亮点:</strong>{strengths_html or '<div class="list-item">无</div>'}</div>
+            <div class="red-flags" style="flex: 1;"><strong>关注点:</strong>{red_flags_html or '<div class="list-item">无</div>'}</div>
+        </div>
+        <details class="chat-history">
+            <summary style="cursor: pointer; font-weight: 600; color: #0D9488;">查看完整对话记录</summary>
+            {chat_html}
+        </details>
+    </div>''')
+                except Exception:
+                    continue
+
+        html_parts.append("""
+</body>
+</html>""")
+
+        return "".join(html_parts)
+
+    def export_single_session_json(self, session_id: str) -> str:
+        """Export a single session as JSON string"""
+        from datetime import timedelta
+
+        today = datetime.now().date()
+
+        # Search in recent 90 days
+        for i in range(90):
+            date = today - timedelta(days=i)
+            date_str = date.strftime("%Y-%m-%d")
+            date_dir = self.base_dir / date_str
+
+            if not date_dir.exists():
+                continue
+
+            session_file = date_dir / f"{session_id}_session.json"
+            if session_file.exists():
+                try:
+                    with open(session_file, "r", encoding="utf-8") as f:
+                        session_data = json.load(f)
+
+                    eval_file = date_dir / f"{session_id}_evaluation.json"
+                    eval_data = None
+                    if eval_file.exists():
+                        with open(eval_file, "r", encoding="utf-8") as ef:
+                            eval_data = json.load(ef)
+
+                    export_data = {
+                        "export_date": datetime.now().isoformat(),
+                        "session": session_data,
+                        "evaluation": eval_data
+                    }
+                    return json.dumps(export_data, ensure_ascii=False, indent=2, default=str)
+                except Exception:
+                    return None
+
+        return None
+
+    def export_single_session_html(self, session_id: str) -> str:
+        """Export a single session as HTML string"""
+        from datetime import timedelta
+
+        today = datetime.now().date()
+
+        # Search in recent 90 days
+        for i in range(90):
+            date = today - timedelta(days=i)
+            date_str = date.strftime("%Y-%m-%d")
+            date_dir = self.base_dir / date_str
+
+            if not date_dir.exists():
+                continue
+
+            session_file = date_dir / f"{session_id}_session.json"
+            if session_file.exists():
+                try:
+                    with open(session_file, "r", encoding="utf-8") as f:
+                        session_data = json.load(f)
+
+                    eval_file = date_dir / f"{session_id}_evaluation.json"
+                    eval_data = None
+                    if eval_file.exists():
+                        with open(eval_file, "r", encoding="utf-8") as ef:
+                            eval_data = json.load(ef)
+
+                    candidate_name = session_data.get("candidate_name", "Unknown")
+                    candidate_email = session_data.get("candidate_email", "")
+                    candidate_phone = session_data.get("candidate_phone", "")
+                    candidate_wechat = session_data.get("candidate_wechat", "")
+                    turn_count = session_data.get("turn_count", 0)
+                    created_at = session_data.get("created_at", "")
+
+                    grade = eval_data.get("decision_tier", "") if eval_data else ""
+                    score = eval_data.get("total_score", "") if eval_data else ""
+                    summary = eval_data.get("summary", "") if eval_data else ""
+                    strengths = eval_data.get("key_strengths", []) if eval_data else []
+                    red_flags = eval_data.get("red_flags", []) if eval_data else []
+
+                    grade_class = f"grade-{grade}" if grade else ""
+                    strengths_html = "".join([f'<div class="list-item">{s}</div>' for s in strengths])
+                    red_flags_html = "".join([f'<div class="list-item">{r}</div>' for r in red_flags])
+
+                    chat_html = ""
+                    for msg in session_data.get("chat_history", []):
+                        role = msg.get("role", "")
+                        content = msg.get("content", "")
+                        role_label = "面试官" if role == "model" else "候选人"
+                        msg_class = "message-model" if role == "model" else "message-user"
+                        chat_html += f'''
+                        <div class="message {msg_class}">
+                            <div class="message-role">{role_label}</div>
+                            <div>{content}</div>
+                        </div>'''
+
+                    html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{candidate_name} - 面试记录</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }}
+        h1 {{ color: #0D9488; border-bottom: 2px solid #0D9488; padding-bottom: 10px; }}
+        .session {{ background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+        .session-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }}
+        .candidate-name {{ font-size: 1.25rem; font-weight: 600; color: #1E293B; }}
+        .grade {{ padding: 4px 12px; border-radius: 20px; font-weight: 600; font-size: 0.875rem; }}
+        .grade-S {{ background: linear-gradient(135deg, #FCD34D, #F59E0B); color: #78350F; }}
+        .grade-A {{ background: linear-gradient(135deg, #34D399, #10B981); color: #064E3B; }}
+        .grade-B {{ background: linear-gradient(135deg, #60A5FA, #3B82F6); color: #1E3A8A; }}
+        .grade-C {{ background: linear-gradient(135deg, #F87171, #EF4444); color: #7F1D1D; }}
+        .info-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px; }}
+        .info-item {{ color: #64748B; font-size: 0.875rem; }}
+        .info-label {{ font-weight: 500; color: #475569; }}
+        .summary {{ background: #F8FAFC; padding: 15px; border-radius: 8px; margin-top: 15px; }}
+        .chat-history {{ margin-top: 15px; border-top: 1px solid #E2E8F0; padding-top: 15px; }}
+        .message {{ margin-bottom: 10px; padding: 10px; border-radius: 8px; }}
+        .message-user {{ background: #E0F2FE; margin-left: 20px; }}
+        .message-model {{ background: #ECFDF5; margin-right: 20px; }}
+        .message-role {{ font-weight: 600; font-size: 0.75rem; color: #64748B; margin-bottom: 4px; }}
+        .strengths {{ color: #059669; }}
+        .red-flags {{ color: #DC2626; }}
+        .list-item {{ margin: 4px 0; padding-left: 16px; position: relative; }}
+        .list-item::before {{ content: "•"; position: absolute; left: 0; }}
+    </style>
+</head>
+<body>
+    <h1>{candidate_name} - 面试记录</h1>
+    <p style="color: #64748B;">导出时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
+    <div class="session">
+        <div class="session-header">
+            <span class="candidate-name">{candidate_name}</span>
+            <span class="grade {grade_class}">{grade} {score}分</span>
+        </div>
+        <div class="info-grid">
+            <div class="info-item"><span class="info-label">邮箱:</span> {candidate_email}</div>
+            <div class="info-item"><span class="info-label">电话:</span> {candidate_phone}</div>
+            <div class="info-item"><span class="info-label">微信:</span> {candidate_wechat}</div>
+            <div class="info-item"><span class="info-label">面试时间:</span> {created_at}</div>
+            <div class="info-item"><span class="info-label">对话轮次:</span> {turn_count} 轮</div>
+        </div>
+        {f'<div class="summary"><strong>评估总结:</strong> {summary}</div>' if summary else ''}
+        <div style="display: flex; gap: 20px; margin-top: 15px;">
+            <div class="strengths" style="flex: 1;"><strong>核心亮点:</strong>{strengths_html or '<div class="list-item">无</div>'}</div>
+            <div class="red-flags" style="flex: 1;"><strong>关注点:</strong>{red_flags_html or '<div class="list-item">无</div>'}</div>
+        </div>
+        <div class="chat-history">
+            <strong style="color: #0D9488;">完整对话记录</strong>
+            {chat_html}
+        </div>
+    </div>
+</body>
+</html>"""
+                    return html
+                except Exception:
+                    return None
+
+        return None
+
+    def export_sessions_by_date_json(self, date_str: str, grade_filter: str = None) -> str:
+        """Export sessions for a specific date as JSON string"""
+        date_dir = self.base_dir / date_str
+
+        export_data = {
+            "export_date": datetime.now().isoformat(),
+            "target_date": date_str,
+            "grade_filter": grade_filter,
+            "sessions": []
+        }
+
+        if not date_dir.exists():
+            return json.dumps(export_data, ensure_ascii=False, indent=2, default=str)
+
+        for session_file in date_dir.glob("*_session.json"):
+            try:
+                with open(session_file, "r", encoding="utf-8") as f:
+                    session_data = json.load(f)
+
+                session_prefix = session_file.stem.replace("_session", "")
+                eval_file = date_dir / f"{session_prefix}_evaluation.json"
+
+                eval_data = None
+                if eval_file.exists():
+                    try:
+                        with open(eval_file, "r", encoding="utf-8") as ef:
+                            eval_data = json.load(ef)
+                    except Exception:
+                        pass
+
+                # Apply grade filter
+                if grade_filter:
+                    session_grade = eval_data.get("decision_tier") if eval_data else None
+                    if session_grade != grade_filter:
+                        continue
+
+                export_data["sessions"].append({
+                    "date": date_str,
+                    "session": session_data,
+                    "evaluation": eval_data
+                })
+            except Exception:
+                continue
+
+        return json.dumps(export_data, ensure_ascii=False, indent=2, default=str)
+
+    def export_sessions_by_date_html(self, date_str: str, grade_filter: str = None) -> str:
+        """Export sessions for a specific date as HTML string"""
+        date_dir = self.base_dir / date_str
+        filter_text = f" | 等级: {grade_filter}" if grade_filter else ""
+
+        html_parts = [f"""
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiVerse 面试记录 - {date_str}</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }}
+        h1 {{ color: #0D9488; border-bottom: 2px solid #0D9488; padding-bottom: 10px; }}
+        .session {{ background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+        .session-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }}
+        .candidate-name {{ font-size: 1.25rem; font-weight: 600; color: #1E293B; }}
+        .grade {{ padding: 4px 12px; border-radius: 20px; font-weight: 600; font-size: 0.875rem; }}
+        .grade-S {{ background: linear-gradient(135deg, #FCD34D, #F59E0B); color: #78350F; }}
+        .grade-A {{ background: linear-gradient(135deg, #34D399, #10B981); color: #064E3B; }}
+        .grade-B {{ background: linear-gradient(135deg, #60A5FA, #3B82F6); color: #1E3A8A; }}
+        .grade-C {{ background: linear-gradient(135deg, #F87171, #EF4444); color: #7F1D1D; }}
+        .info-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px; }}
+        .info-item {{ color: #64748B; font-size: 0.875rem; }}
+        .info-label {{ font-weight: 500; color: #475569; }}
+        .summary {{ background: #F8FAFC; padding: 15px; border-radius: 8px; margin-top: 15px; }}
+        .chat-history {{ margin-top: 15px; border-top: 1px solid #E2E8F0; padding-top: 15px; }}
+        .message {{ margin-bottom: 10px; padding: 10px; border-radius: 8px; }}
+        .message-user {{ background: #E0F2FE; margin-left: 20px; }}
+        .message-model {{ background: #ECFDF5; margin-right: 20px; }}
+        .message-role {{ font-weight: 600; font-size: 0.75rem; color: #64748B; margin-bottom: 4px; }}
+        .strengths {{ color: #059669; }}
+        .red-flags {{ color: #DC2626; }}
+        .list-item {{ margin: 4px 0; padding-left: 16px; position: relative; }}
+        .list-item::before {{ content: "•"; position: absolute; left: 0; }}
+    </style>
+</head>
+<body>
+    <h1>VoiVerse 面试记录 - {date_str}</h1>
+    <p style="color: #64748B;">导出时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}{filter_text}</p>
+"""]
+
+        if not date_dir.exists():
+            html_parts.append("<p>该日期无面试记录</p>")
+        else:
+            count = 0
+            for session_file in date_dir.glob("*_session.json"):
+                try:
+                    with open(session_file, "r", encoding="utf-8") as f:
+                        session_data = json.load(f)
+
+                    session_prefix = session_file.stem.replace("_session", "")
+                    eval_file = date_dir / f"{session_prefix}_evaluation.json"
+
+                    eval_data = None
+                    if eval_file.exists():
+                        try:
+                            with open(eval_file, "r", encoding="utf-8") as ef:
+                                eval_data = json.load(ef)
+                        except Exception:
+                            pass
+
+                    # Apply grade filter
+                    if grade_filter:
+                        session_grade = eval_data.get("decision_tier") if eval_data else None
+                        if session_grade != grade_filter:
+                            continue
+
+                    # Build session HTML
+                    candidate_name = session_data.get("candidate_name", "Unknown")
+                    candidate_email = session_data.get("candidate_email", "")
+                    candidate_phone = session_data.get("candidate_phone", "")
+                    candidate_wechat = session_data.get("candidate_wechat", "")
+                    turn_count = session_data.get("turn_count", 0)
+                    created_at = session_data.get("created_at", "")
+
+                    grade = eval_data.get("decision_tier", "") if eval_data else ""
+                    score = eval_data.get("total_score", "") if eval_data else ""
+                    summary = eval_data.get("summary", "") if eval_data else ""
+                    strengths = eval_data.get("key_strengths", []) if eval_data else []
+                    red_flags = eval_data.get("red_flags", []) if eval_data else []
+
+                    grade_class = f"grade-{grade}" if grade else ""
+                    strengths_html = "".join([f'<div class="list-item">{s}</div>' for s in strengths])
+                    red_flags_html = "".join([f'<div class="list-item">{r}</div>' for r in red_flags])
+
+                    chat_html = ""
+                    for msg in session_data.get("chat_history", []):
+                        role = msg.get("role", "")
+                        content = msg.get("content", "")
+                        role_label = "面试官" if role == "model" else "候选人"
+                        msg_class = "message-model" if role == "model" else "message-user"
+                        chat_html += f'''
+                        <div class="message {msg_class}">
+                            <div class="message-role">{role_label}</div>
+                            <div>{content}</div>
+                        </div>'''
+
+                    html_parts.append(f'''
+    <div class="session">
+        <div class="session-header">
+            <span class="candidate-name">{candidate_name}</span>
+            <span class="grade {grade_class}">{grade} {score}分</span>
+        </div>
+        <div class="info-grid">
+            <div class="info-item"><span class="info-label">邮箱:</span> {candidate_email}</div>
+            <div class="info-item"><span class="info-label">电话:</span> {candidate_phone}</div>
+            <div class="info-item"><span class="info-label">微信:</span> {candidate_wechat}</div>
+            <div class="info-item"><span class="info-label">面试时间:</span> {created_at}</div>
+            <div class="info-item"><span class="info-label">对话轮次:</span> {turn_count} 轮</div>
+        </div>
+        {f'<div class="summary"><strong>评估总结:</strong> {summary}</div>' if summary else ''}
+        <div style="display: flex; gap: 20px; margin-top: 15px;">
+            <div class="strengths" style="flex: 1;"><strong>核心亮点:</strong>{strengths_html or '<div class="list-item">无</div>'}</div>
+            <div class="red-flags" style="flex: 1;"><strong>关注点:</strong>{red_flags_html or '<div class="list-item">无</div>'}</div>
+        </div>
+        <details class="chat-history">
+            <summary style="cursor: pointer; font-weight: 600; color: #0D9488;">查看完整对话记录</summary>
+            {chat_html}
+        </details>
+    </div>''')
+                    count += 1
+                except Exception:
+                    continue
+
+            if count == 0:
+                html_parts.append("<p>该日期无符合条件的面试记录</p>")
+
+        html_parts.append("""
+</body>
+</html>""")
+
+        return "".join(html_parts)
 
 
 # Singleton instance

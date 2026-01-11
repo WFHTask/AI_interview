@@ -184,12 +184,13 @@ STANDARD_RESPONSES = {
 def format_interviewer_prompt(
     job_description: str,
     turn_count: int = 0,
-    max_turns: int = 50,
+    max_turns: int = 28,
     custom_greeting: str = "",
     candidate_name: str = "",
     candidate_email: str = "",
     candidate_resume: str = "",
-    company_background: str = ""
+    company_background: str = "",
+    custom_prompt: str = ""
 ) -> str:
     """
     Format interviewer prompt with dynamic values
@@ -203,10 +204,14 @@ def format_interviewer_prompt(
         candidate_email: Candidate's email (optional)
         candidate_resume: Candidate's resume summary (optional)
         company_background: Company background information (optional)
+        custom_prompt: Custom AI prompt template (optional, replaces default)
 
     Returns:
         Formatted prompt string
     """
+    # Use custom prompt if provided, otherwise use default
+    base_prompt = custom_prompt.strip() if custom_prompt and custom_prompt.strip() else INTERVIEWER_PROMPT
+
     # Build company background section if provided
     if company_background and company_background.strip():
         company_background_section = COMPANY_BACKGROUND_SECTION.format(
@@ -241,7 +246,7 @@ def format_interviewer_prompt(
     else:
         candidate_info_section = ""
 
-    return INTERVIEWER_PROMPT.format(
+    return base_prompt.format(
         job_description=job_description,
         company_background_section=company_background_section,
         candidate_info_section=candidate_info_section,

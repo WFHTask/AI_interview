@@ -43,7 +43,7 @@ def render_evaluation_result(
 def render_s_tier_celebration(
     evaluation: EvaluationResult,
     invitation: str = "",
-    link: str = ""
+    wechat_id: str = ""
 ):
     """
     Render S-tier celebration card with special styling
@@ -51,7 +51,7 @@ def render_s_tier_celebration(
     Args:
         evaluation: Evaluation result
         invitation: Invitation text
-        link: Booking link
+        wechat_id: HR WeChat ID for contact
     """
     # Celebration animation
     st.balloons()
@@ -60,7 +60,7 @@ def render_s_tier_celebration(
     card_html = get_s_tier_card(
         notification_text=evaluation.notification_text,
         invitation=invitation or "请直接添加 CTO 微信进行沟通",
-        link=link
+        wechat_id=wechat_id
     )
     st.markdown(card_html, unsafe_allow_html=True)
 
@@ -294,7 +294,7 @@ def render_interview_ended_safe(notification_text: str = ""):
 def render_s_tier_result_safe(
     notification_text: str = "",
     invitation: str = "",
-    link: str = ""
+    wechat_id: str = ""
 ):
     """
     SECURITY: Render S-tier celebration without any evaluation object.
@@ -304,7 +304,7 @@ def render_s_tier_result_safe(
     Args:
         notification_text: Congratulation message
         invitation: S-tier invitation text
-        link: S-tier booking link
+        wechat_id: HR WeChat ID for contact
     """
     # Celebration animation
     st.balloons()
@@ -313,7 +313,7 @@ def render_s_tier_result_safe(
     card_html = get_s_tier_card(
         notification_text=notification_text or "恭喜！您的表现非常出色！",
         invitation=invitation or "请直接添加 CTO 微信进行沟通",
-        link=link
+        wechat_id=wechat_id
     )
     st.markdown(card_html, unsafe_allow_html=True)
 

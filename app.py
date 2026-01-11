@@ -127,7 +127,9 @@ def start_interview_for_candidate(
     job_config,
     candidate_name: str,
     candidate_email: str,
-    candidate_resume: str = ""
+    candidate_resume: str = "",
+    candidate_phone: str = "",
+    candidate_wechat: str = ""
 ):
     """Start interview for a candidate"""
     try:
@@ -152,8 +154,13 @@ def start_interview_for_candidate(
             candidate_resume=candidate_resume,
             custom_greeting=job_config.custom_greeting,
             company_background=company_background,
-            test_mode=job_config.test_mode
+            test_mode=job_config.test_mode,
+            custom_prompt=job_config.custom_prompt
         )
+
+        # Add phone and wechat to session
+        session.candidate_phone = candidate_phone
+        session.candidate_wechat = candidate_wechat
 
         # Save resume file if uploaded
         resume_file_data = st.session_state.get("resume_file_data")
@@ -439,7 +446,8 @@ def try_restore_session_from_url(job_config_id: str, session_id: str, job_config
                 session=session,
                 custom_greeting=job_config.custom_greeting,
                 company_background=company_background,
-                test_mode=job_config.test_mode
+                test_mode=job_config.test_mode,
+                custom_prompt=job_config.custom_prompt
             )
 
             # Restore session state
@@ -583,8 +591,8 @@ def render_candidate_view(job_config_id: str):
         # Pass full job_config only for start_interview (needs JD, greeting, etc.)
         render_candidate_header(safe_config.job_title)
 
-        def on_start(name: str, email: str, resume_summary: str = ""):
-            start_interview_for_candidate(job_config, name, email, resume_summary)
+        def on_start(name: str, email: str, resume_summary: str = "", phone: str = "", wechat: str = ""):
+            start_interview_for_candidate(job_config, name, email, resume_summary, phone, wechat)
 
         render_candidate_welcome(job_config, on_start)
 
@@ -614,7 +622,7 @@ def render_candidate_view(job_config_id: str):
                     render_s_tier_result_safe(
                         notification_text=evaluation.notification_text,
                         invitation=safe_config.s_tier_invitation,
-                        link=safe_config.s_tier_link
+                        wechat_id=safe_config.s_tier_link
                     )
                 else:
                     # Non-S tier: Show simple end message

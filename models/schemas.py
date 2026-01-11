@@ -70,6 +70,8 @@ class InterviewSession(BaseModel):
     # Candidate info
     candidate_name: Optional[str] = None
     candidate_email: Optional[str] = None
+    candidate_phone: Optional[str] = None
+    candidate_wechat: Optional[str] = None
     candidate_resume: Optional[str] = None
     candidate_info: Optional[Dict[str, Any]] = None
     resume_file_path: Optional[str] = None  # Path to uploaded resume file (for HR review)

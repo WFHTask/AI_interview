@@ -88,6 +88,12 @@ ICONS = {
     "mic": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>''',
 
     "shield": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>''',
+
+    "phone": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>''',
+
+    "mail": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>''',
+
+    "wechat": '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/><path d="M15 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/><path d="M7.5 17.5 6 22l4.5-2.5"/><path d="M12 2C6.5 2 2 5.5 2 10c0 2.5 1.5 4.5 3.5 6L4 22l5-3c1 .5 2 .5 3 .5 5.5 0 10-3.5 10-8s-4.5-8-10-8z"/></svg>''',
 }
 
 
@@ -994,13 +1000,13 @@ THINKING_INDICATOR_HTML = """
 
 S_TIER_CARD_HTML = """
 <div class="s-tier-card">
-    <h2 style="display: flex; align-items: center; gap: 0.5rem;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        恭喜！您被评为 S 级人才！
-    </h2>
-    <p>{notification_text}</p>
-    <p><strong>{invitation}</strong></p>
-    {link_html}
+<h2 style="display: flex; align-items: center; gap: 0.5rem;">
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+恭喜！您被评为 S 级人才！
+</h2>
+<p>{notification_text}</p>
+<p><strong>{invitation}</strong></p>
+{wechat_html}
 </div>
 """
 
@@ -1030,16 +1036,43 @@ PROGRESS_BAR_HTML = """
 def get_s_tier_card(
     notification_text: str,
     invitation: str,
-    link: str = ""
+    wechat_id: str = ""
 ) -> str:
-    """Generate S-tier celebration card HTML"""
-    arrow_icon = '''<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>'''
-    link_html = f'<a href="{link}" class="cta-button" target="_blank">{arrow_icon} 点击预约面试时间</a>' if link else ""
+    """Generate S-tier celebration card HTML with WeChat ID display"""
+    if wechat_id:
+        wechat_html = f'''
+<div style="
+    background: rgba(255,255,255,0.2);
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-top: 1rem;
+    text-align: center;
+">
+    <p style="margin: 0 0 0.5rem 0; font-size: 0.9rem; opacity: 0.9;">请添加以下微信号：</p>
+    <p style="
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        cursor: pointer;
+        user-select: all;
+        background: rgba(255,255,255,0.15);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        display: inline-block;
+    " onclick="navigator.clipboard.writeText('{wechat_id}').then(()=>alert('微信号已复制'))" title="点击复制微信号">
+        {wechat_id}
+    </p>
+    <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; opacity: 0.7;">（点击复制）</p>
+</div>
+'''
+    else:
+        wechat_html = ""
 
     return S_TIER_CARD_HTML.format(
         notification_text=notification_text,
         invitation=invitation,
-        link_html=link_html
+        wechat_html=wechat_html
     )
 
 

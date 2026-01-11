@@ -48,14 +48,14 @@ def render_candidate_header(job_title: str = ""):
 
 def render_candidate_welcome(
     job_config: JobConfig,
-    on_start: Callable[[str, str, str], None]
+    on_start: Callable[[str, str, str, str, str], None]
 ):
     """
     Render welcome screen for candidate with info collection and resume upload
 
     Args:
         job_config: Job configuration
-        on_start: Callback when candidate starts interview (name, email, resume_summary)
+        on_start: Callback when candidate starts interview (name, email, resume_summary, phone, wechat)
     """
     # Welcome message
     hand_icon = icon("hand-wave", size=48, color="#0D9488")
@@ -111,9 +111,25 @@ def render_candidate_welcome(
 
     with col2:
         candidate_email = st.text_input(
-            "邮箱 (可选)",
+            "邮箱 *",
             placeholder="your@email.com",
             key="candidate_email_input"
+        )
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        candidate_phone = st.text_input(
+            "手机号 *",
+            placeholder="13800138000",
+            key="candidate_phone_input"
+        )
+
+    with col4:
+        candidate_wechat = st.text_input(
+            "微信号 *",
+            placeholder="请输入您的微信号",
+            key="candidate_wechat_input"
         )
 
     # Resume upload section
@@ -194,9 +210,18 @@ def render_candidate_welcome(
             if st.session_state.get("parsed_resume"):
                 _render_resume_preview(st.session_state.parsed_resume)
 
-    # Get resume summary from session if available
+    # Get resume summary from session if available, or use raw text
     final_resume_summary = st.session_state.get("resume_summary", "")
-    has_resume = bool(st.session_state.get("parsed_resume"))
+
+    # Check if resume is available: either parsed or raw text input
+    has_parsed_resume = bool(st.session_state.get("parsed_resume"))
+    raw_resume_text = st.session_state.get("resume_text_input", "")
+    has_raw_text = bool(raw_resume_text and len(raw_resume_text.strip()) > 50)
+    has_resume = has_parsed_resume or has_raw_text
+
+    # If no parsed resume but has raw text, use raw text as summary
+    if not final_resume_summary and has_raw_text:
+        final_resume_summary = raw_resume_text.strip()
 
     # Voice input guidance
     render_voice_input_guide()
@@ -226,24 +251,36 @@ def render_candidate_welcome(
     # Validate name
     name_valid, name_error = validate_candidate_name(candidate_name) if candidate_name else (False, None)
 
-    # Validate email if provided
-    email_valid = True
+    # Validate email (required)
+    email_valid = False
     email_error = None
     if candidate_email and candidate_email.strip():
         email_valid, email_error = validate_email(candidate_email)
 
-    # Check if can start
-    can_start = name_valid and email_valid and has_resume
+    # Validate phone (required)
+    phone_valid = bool(candidate_phone and len(candidate_phone.strip()) >= 11)
 
-    # Show validation errors
+    # Validate wechat (required)
+    wechat_valid = bool(candidate_wechat and len(candidate_wechat.strip()) >= 2)
+
+    # Check if can start
+    can_start = name_valid and email_valid and phone_valid and wechat_valid and has_resume
+
+    # Show validation errors - only show after user has started filling the form
+    has_started_filling = bool(candidate_name or candidate_email or candidate_phone or candidate_wechat)
+
     if candidate_name and not name_valid and name_error:
         validation_errors.append(f"姓名: {name_error}")
 
     if candidate_email and not email_valid and email_error:
         validation_errors.append(f"邮箱: {email_error}")
 
-    if not has_resume:
-        validation_errors.append("请先上传并解析简历")
+    if candidate_phone and not phone_valid:
+        validation_errors.append("手机号: 请输入有效的手机号")
+
+    # Only show resume error if user has filled other fields but not resume
+    if has_started_filling and not has_resume:
+        validation_errors.append("请上传简历文件或粘贴简历文本（至少50字）")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -257,7 +294,9 @@ def render_candidate_welcome(
             on_start(
                 candidate_name.strip(),
                 candidate_email.strip() if candidate_email else "",
-                final_resume_summary
+                final_resume_summary,
+                candidate_phone.strip() if candidate_phone else "",
+                candidate_wechat.strip() if candidate_wechat else ""
             )
 
     # Show validation messages
@@ -265,7 +304,7 @@ def render_candidate_welcome(
         for error in validation_errors:
             st.warning(error)
     elif not candidate_name:
-        st.caption("请填写姓名并上传简历后开始面试")
+        st.caption("请填写信息并解析简历后开始面试")
 
 
 def _render_resume_preview(resume_data: Dict[str, Any]):

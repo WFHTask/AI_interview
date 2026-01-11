@@ -16,12 +16,87 @@ from services.company_config_service import company_config_service
 from services.job_config_service import job_config_service, create_job_config
 from services.storage_service import storage_service
 
+
+# ============================================
+# 缓存函数 - 避免重复读取文件系统
+# ============================================
+@st.cache_data(ttl=30)
+def _get_cached_grade_counts(days: int = 7):
+    """缓存等级统计，30秒过期"""
+    return storage_service.get_grade_counts(days=days)
+
+
+@st.cache_data(ttl=30)
+def _get_cached_recent_sessions(days: int = 7, grade_filter: str = None):
+    """缓存面试历史，30秒过期"""
+    return storage_service.get_recent_sessions(days=days, grade_filter=grade_filter)
+
+
+@st.cache_data(ttl=10)
+def _get_cached_job_configs():
+    """缓存岗位配置，10秒过期"""
+    return job_config_service.list_configs(active_only=True)
+
+
+def _clear_all_caches():
+    """清除所有缓存（数据变更后调用）"""
+    _get_cached_grade_counts.clear()
+    _get_cached_recent_sessions.clear()
+    _get_cached_job_configs.clear()
+
 # Bento Grid CSS
 BENTO_CSS = """
 <style>
 /* Prevent scroll reset on tab switch */
 html {
     scroll-behavior: auto !important;
+}
+
+/* Custom Navigation Tabs - 美化 radio 按钮 */
+div[data-testid="stHorizontalBlock"]:has(div[role="radiogroup"]) {
+    background: linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 100%);
+    border-radius: 12px;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+div[role="radiogroup"] {
+    gap: 0.5rem !important;
+}
+
+div[role="radiogroup"] label {
+    background: rgba(255, 255, 255, 0.8) !important;
+    border: 1px solid rgba(13, 148, 136, 0.2) !important;
+    border-radius: 8px !important;
+    padding: 0.6rem 1.5rem !important;
+    font-weight: 600 !important;
+    color: #0F766E !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+}
+
+div[role="radiogroup"] label:hover {
+    background: rgba(13, 148, 136, 0.15) !important;
+    border-color: rgba(13, 148, 136, 0.4) !important;
+}
+
+div[role="radiogroup"] label[data-checked="true"] {
+    background: #0D9488 !important;
+    color: white !important;
+    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3) !important;
+}
+
+/* Hide the radio circle */
+div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] {
+    margin-left: 0 !important;
+}
+
+div[role="radiogroup"] input[type="radio"] {
+    display: none !important;
+}
+
+div[role="radiogroup"] label > div:first-child {
+    display: none !important;
 }
 
 /* Bento Grid Container */
@@ -35,15 +110,12 @@ html {
 .bento-3col { grid-template-columns: repeat(3, 1fr); }
 .bento-4col { grid-template-columns: repeat(4, 1fr); }
 
-/* Glassmorphism Card */
+/* Glassmorphism Card - 简化版提升性能 */
 .glass-card {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 20px;
+    border-radius: 16px;
     padding: 1.5rem;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
 }
@@ -59,9 +131,7 @@ html {
 }
 
 .glass-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 20px 40px rgba(13, 148, 136, 0.15);
-    border-color: rgba(13, 148, 136, 0.3);
+    box-shadow: 0 8px 16px rgba(13, 148, 136, 0.1);
 }
 
 /* Metric Card - Big Numbers */
@@ -175,14 +245,9 @@ html {
     font-weight: 600;
 }
 
-/* Animation */
-@keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
+/* Animation - 禁用动画提升性能 */
 .animate-in {
-    animation: slideUp 0.5s ease-out forwards;
+    opacity: 1;
 }
 
 /* Responsive - Mobile First */
@@ -326,50 +391,25 @@ def render_header():
     """Render gradient header with logo"""
     st.markdown(BENTO_CSS, unsafe_allow_html=True)
 
-    # JavaScript to preserve scroll position on tab switch
+    # 轻量级滚动位置保存（不使用 MutationObserver）
     st.markdown("""
     <script>
     (function() {
-        const SCROLL_KEY = 'vv_scroll_pos';
+        const KEY = 'vv_scroll';
 
-        // Save scroll position
-        const saveScroll = () => {
-            sessionStorage.setItem(SCROLL_KEY, window.scrollY.toString());
-        };
+        // 恢复滚动位置
+        const pos = sessionStorage.getItem(KEY);
+        if (pos && parseInt(pos) > 0) {
+            setTimeout(() => window.scrollTo(0, parseInt(pos)), 50);
+            setTimeout(() => window.scrollTo(0, parseInt(pos)), 150);
+        }
 
-        // Restore scroll position
-        const restoreScroll = () => {
-            const pos = sessionStorage.getItem(SCROLL_KEY);
-            if (pos && parseInt(pos) > 0) {
-                requestAnimationFrame(() => {
-                    window.scrollTo({ top: parseInt(pos), behavior: 'instant' });
-                });
-            }
-        };
-
-        // Listen for any click that might trigger rerun
+        // 点击按钮时保存位置
         document.addEventListener('click', (e) => {
-            const tab = e.target.closest('[data-baseweb="tab"]');
-            const button = e.target.closest('button');
-            if (tab || button) {
-                saveScroll();
+            if (e.target.closest('button') || e.target.closest('[role="radio"]')) {
+                sessionStorage.setItem(KEY, window.scrollY.toString());
             }
         }, true);
-
-        // Restore immediately and after delays
-        restoreScroll();
-        setTimeout(restoreScroll, 50);
-        setTimeout(restoreScroll, 150);
-        setTimeout(restoreScroll, 300);
-
-        // Watch for DOM changes (Streamlit rerenders)
-        const observer = new MutationObserver(() => {
-            restoreScroll();
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-
-        // Clean up after 2 seconds
-        setTimeout(() => observer.disconnect(), 2000);
     })();
     </script>
     """, unsafe_allow_html=True)
@@ -393,9 +433,9 @@ def render_header():
 
 def render_metrics():
     """Render KPI metric cards with glassmorphism"""
-    grade_counts = storage_service.get_grade_counts(days=7)
+    grade_counts = _get_cached_grade_counts(days=7)
     total = sum(grade_counts.values())
-    configs = job_config_service.list_configs(active_only=True)
+    configs = _get_cached_job_configs()
 
     st.markdown(f"""
     <div class="bento-grid bento-4col" style="animation-delay: 0.1s;">
@@ -436,8 +476,8 @@ def render_job_config_tab():
         st.success("岗位配置已删除")
         st.session_state._show_delete_success = False
 
-    # Load existing configs
-    existing_configs = job_config_service.list_configs(active_only=True)
+    # Load existing configs (使用缓存)
+    existing_configs = _get_cached_job_configs()
     config_options = {"+ 新建岗位": None}
     for c in existing_configs:
         label = c.job_title if c.job_title else c.job_description[:20] + "..."
@@ -469,6 +509,8 @@ def render_job_config_tab():
                 st.session_state.job_title = cfg.job_title
                 st.session_state.job_description = cfg.job_description
                 st.session_state.custom_greeting = cfg.custom_greeting
+                st.session_state.custom_prompt = cfg.custom_prompt
+                st.session_state.hr_wechat = cfg.hr_wechat
                 st.session_state.s_tier_invitation = cfg.s_tier_invitation
                 st.session_state.s_tier_link = cfg.s_tier_link
                 st.session_state.feishu_webhook = cfg.feishu_webhook
@@ -476,10 +518,13 @@ def render_job_config_tab():
                 st.session_state.current_config_id = selected_id
                 st.session_state.generated_url = cfg.get_interview_url()
         else:
+            from core.prompts import INTERVIEWER_PROMPT
             st.session_state.job_title = ""
             st.session_state.job_description = ""
             st.session_state.custom_greeting = ""
-            st.session_state.s_tier_invitation = "请直接添加 CTO 微信：VoiCTO"
+            st.session_state.custom_prompt = INTERVIEWER_PROMPT
+            st.session_state.hr_wechat = ""
+            st.session_state.s_tier_invitation = "恭喜您通过面试！请添加以下微信进行后续沟通"
             st.session_state.s_tier_link = ""
             st.session_state.feishu_webhook = ""
             st.session_state.test_mode = False
@@ -499,24 +544,52 @@ def render_job_config_tab():
     with col_right:
         # S级人才 + 通知设置
         st.markdown(f'<div class="section-title">{icon("star", 20)} S级人才邀请</div>', unsafe_allow_html=True)
-        s_tier_inv = st.text_area("邀请文案", value=st.session_state.get("s_tier_invitation", "请直接添加 CTO 微信：VoiCTO"), height=60)
-        s_tier_link = st.text_input("预约链接", value=st.session_state.get("s_tier_link", ""), placeholder="https://calendly.com/...")
+
+        hr_wechat = st.text_input("HR微信号 *", value=st.session_state.get("hr_wechat", ""), placeholder="必填，S级人才将通过此微信联系")
+        s_tier_inv = st.text_area("邀请文案", value=st.session_state.get("s_tier_invitation", "恭喜您通过面试！请添加以下微信进行后续沟通"), height=60)
 
         st.markdown(f'<div class="section-title" style="margin-top:1rem;">{icon("bell", 20)} 通知设置</div>', unsafe_allow_html=True)
         feishu = st.text_input("飞书 Webhook", value=st.session_state.get("feishu_webhook", ""), type="password", placeholder="https://open.feishu.cn/...")
         test_mode = st.toggle("测试模式 (输入 /stop 结束)", value=st.session_state.get("test_mode", False))
 
+    # AI Prompt 配置（折叠）
+    with st.expander("AI Prompt 配置（高级）", expanded=False):
+        st.markdown("""
+**可用变量说明：**
+- `{job_description}` - 岗位描述（JD），系统自动填充
+- `{company_background_section}` - 公司背景信息（在设置中配置）
+- `{candidate_info_section}` - 候选人信息（姓名、邮箱、简历）
+- `{turn_count}` - 当前对话轮次
+- `{max_turns}` - 最大对话轮次（默认28）
+- `{custom_greeting_instruction}` - 自定义开场白指令
+
+**注意：** 修改 Prompt 可能影响面试效果，请谨慎操作。
+        """)
+        from core.prompts import INTERVIEWER_PROMPT
+        default_prompt = INTERVIEWER_PROMPT
+        custom_prompt = st.text_area(
+            "面试官 Prompt",
+            value=st.session_state.get("custom_prompt", default_prompt),
+            height=200,
+            key="custom_prompt_input"
+        )
+        if st.button("恢复默认 Prompt", key="reset_prompt"):
+            st.session_state.custom_prompt = default_prompt
+            st.rerun()
+
     # Update session state
     st.session_state.job_title = job_title
     st.session_state.job_description = job_desc
     st.session_state.custom_greeting = custom_greeting
+    st.session_state.hr_wechat = hr_wechat
     st.session_state.s_tier_invitation = s_tier_inv
-    st.session_state.s_tier_link = s_tier_link
+    st.session_state.s_tier_link = hr_wechat  # 使用微信号作为 s_tier_link
     st.session_state.feishu_webhook = feishu
     st.session_state.test_mode = test_mode
+    st.session_state.custom_prompt = custom_prompt
 
     # Action buttons row
-    can_save = bool(job_desc and job_desc.strip())
+    can_save = bool(job_desc and job_desc.strip() and hr_wechat and hr_wechat.strip())
     st.markdown("<br>", unsafe_allow_html=True)
 
     if selected_id:
@@ -528,20 +601,34 @@ def render_job_config_tab():
                     cfg.job_title = job_title
                     cfg.job_description = job_desc
                     cfg.custom_greeting = custom_greeting
+                    cfg.custom_prompt = custom_prompt
+                    cfg.hr_wechat = hr_wechat
                     cfg.s_tier_invitation = s_tier_inv
-                    cfg.s_tier_link = s_tier_link
+                    cfg.s_tier_link = hr_wechat  # 使用微信号
                     cfg.feishu_webhook = feishu
                     cfg.test_mode = test_mode
                     job_config_service.update_config(cfg)
                     st.session_state.generated_url = cfg.get_interview_url()
+                    _clear_all_caches()  # 清除缓存
                     st.session_state._show_save_success = True
                     st.rerun()
         with c2:
             if st.button("复制", use_container_width=True):
-                new_cfg = create_job_config(job_desc, f"{job_title} (副本)", custom_greeting, s_tier_inv, s_tier_link, feishu)
+                new_cfg = create_job_config(
+                    job_description=job_desc,
+                    job_title=f"{job_title} (副本)",
+                    custom_greeting=custom_greeting,
+                    custom_prompt=custom_prompt,
+                    hr_wechat=hr_wechat,
+                    s_tier_invitation=s_tier_inv,
+                    s_tier_link=hr_wechat,
+                    feishu_webhook=feishu,
+                    test_mode=test_mode
+                )
                 st.session_state.current_config_id = new_cfg.config_id
                 st.session_state._last_config = new_cfg.config_id
                 st.session_state.generated_url = new_cfg.get_interview_url()
+                _clear_all_caches()  # 清除缓存
                 st.session_state._show_copy_success = True
                 st.rerun()
         with c3:
@@ -560,6 +647,7 @@ def render_job_config_tab():
                     st.session_state._last_config = None
                     st.session_state.generated_url = None
                     st.session_state._confirm_del = None
+                    _clear_all_caches()  # 清除缓存
                     st.session_state._show_delete_success = True
                     st.rerun()
             with cc2:
@@ -568,10 +656,21 @@ def render_job_config_tab():
                     st.rerun()
     else:
         if st.button("生成面试链接", use_container_width=True, type="primary", disabled=not can_save):
-            cfg = create_job_config(job_desc, job_title, custom_greeting, s_tier_inv, s_tier_link, feishu, test_mode)
+            cfg = create_job_config(
+                job_description=job_desc,
+                job_title=job_title,
+                custom_greeting=custom_greeting,
+                custom_prompt=custom_prompt,
+                hr_wechat=hr_wechat,
+                s_tier_invitation=s_tier_inv,
+                s_tier_link=hr_wechat,
+                feishu_webhook=feishu,
+                test_mode=test_mode
+            )
             st.session_state.current_config_id = cfg.config_id
             st.session_state._last_config = cfg.config_id
             st.session_state.generated_url = cfg.get_interview_url()
+            _clear_all_caches()  # 清除缓存
             st.session_state._show_create_success = True
             st.rerun()
 
@@ -646,15 +745,15 @@ def render_job_config_tab():
 
 
 def render_history_tab():
-    """Render interview history with modern cards"""
-    grade_counts = storage_service.get_grade_counts(days=7)
+    """Render interview history with modern cards - 性能优化版"""
+    grade_counts = _get_cached_grade_counts(days=7)
     total = sum(grade_counts.values())
 
     # Stats row with grade badges
     st.markdown(f"""
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
         <div style="font-size: 1.5rem; font-weight: 700; color: #0F172A;">
-            最近 7 天 · <span style="color: #0D9488;">{total}</span> 条记录
+            面试记录 · <span style="color: #0D9488;">{total}</span> 条
         </div>
         <div style="display: flex; gap: 0.5rem;">
             <span class="status-badge" style="background: linear-gradient(135deg, #FCD34D, #F59E0B); color: #78350F;">S: {grade_counts['S']}</span>
@@ -665,28 +764,107 @@ def render_history_tab():
     </div>
     """, unsafe_allow_html=True)
 
-    # Filter
-    filter_opts = {"全部": None, "S级": "S", "A级": "A", "B级": "B", "C级": "C", "待评估": "pending"}
-    selected_filter = st.selectbox("筛选等级", list(filter_opts.keys()), key="grade_filter", label_visibility="collapsed")
-    grade_filter = filter_opts[selected_filter]
+    # Filter row
+    col_days, col_grade, col_export = st.columns([1, 1, 1])
+    with col_days:
+        days_options = {"最近 7 天": 7, "最近 14 天": 14, "最近 30 天": 30}
+        selected_days = st.selectbox("时间范围", list(days_options.keys()), key="days_filter", label_visibility="collapsed")
+        days = days_options[selected_days]
 
-    # Get sessions
+    with col_grade:
+        filter_opts = {"全部等级": None, "S级": "S", "A级": "A", "B级": "B", "C级": "C", "待评估": "pending"}
+        selected_filter = st.selectbox("筛选等级", list(filter_opts.keys()), key="grade_filter", label_visibility="collapsed")
+        grade_filter = filter_opts[selected_filter]
+
+    with col_export:
+        if total > 0:
+            if st.button("批量导出", use_container_width=True):
+                st.session_state._show_export_dialog = True
+
+    # 批量导出对话框
+    if st.session_state.get("_show_export_dialog"):
+        st.markdown("---")
+        st.markdown("**批量导出设置**")
+
+        exp_col1, exp_col2 = st.columns(2)
+        with exp_col1:
+            # 日期选择
+            from datetime import datetime, timedelta
+            today = datetime.now().date()
+            exp_date = st.date_input(
+                "选择日期",
+                value=today,
+                max_value=today,
+                min_value=today - timedelta(days=90),
+                key="export_date"
+            )
+        with exp_col2:
+            exp_grade = st.selectbox("导出等级", ["全部", "S", "A", "B", "C"], key="export_grade")
+
+        exp_col3, exp_col4, exp_col5 = st.columns(3)
+        with exp_col3:
+            if st.button("导出 JSON", use_container_width=True, key="batch_json"):
+                with st.spinner("生成中..."):
+                    grade_val = None if exp_grade == "全部" else exp_grade
+                    date_str = exp_date.strftime("%Y-%m-%d")
+                    json_data = storage_service.export_sessions_by_date_json(date_str=date_str, grade_filter=grade_val)
+                    st.session_state._batch_export_data = json_data
+                    st.session_state._batch_export_format = "json"
+                    st.session_state._batch_export_date = date_str
+                    st.session_state._show_export_dialog = False
+                    st.rerun()
+        with exp_col4:
+            if st.button("导出 HTML", use_container_width=True, key="batch_html"):
+                with st.spinner("生成中..."):
+                    grade_val = None if exp_grade == "全部" else exp_grade
+                    date_str = exp_date.strftime("%Y-%m-%d")
+                    html_data = storage_service.export_sessions_by_date_html(date_str=date_str, grade_filter=grade_val)
+                    st.session_state._batch_export_data = html_data
+                    st.session_state._batch_export_format = "html"
+                    st.session_state._batch_export_date = date_str
+                    st.session_state._show_export_dialog = False
+                    st.rerun()
+        with exp_col5:
+            if st.button("取消", use_container_width=True, key="cancel_batch"):
+                st.session_state._show_export_dialog = False
+                st.rerun()
+
+    # 显示批量导出下载按钮
+    if st.session_state.get("_batch_export_data"):
+        fmt = st.session_state.get("_batch_export_format", "json")
+        date_str = st.session_state.get("_batch_export_date", "export")
+        filename = f"voiverse_{date_str}"
+        if fmt == "json":
+            st.download_button(f"⬇ 下载 {date_str}.json", st.session_state._batch_export_data, f"{filename}.json", "application/json", use_container_width=True)
+        else:
+            st.download_button(f"⬇ 下载 {date_str}.html", st.session_state._batch_export_data, f"{filename}.html", "text/html", use_container_width=True)
+        if st.button("关闭", key="close_batch_download"):
+            st.session_state._batch_export_data = None
+            st.session_state._batch_export_format = None
+            st.session_state._batch_export_date = None
+            st.rerun()
+
+    # Get sessions (使用缓存，根据选择的天数)
     if grade_filter == "pending":
-        sessions = [s for s in storage_service.get_recent_sessions(days=7) if s.get("grade") is None]
+        sessions = [s for s in _get_cached_recent_sessions(days=days) if s.get("grade") is None]
     else:
-        sessions = storage_service.get_recent_sessions(days=7, grade_filter=grade_filter)
+        sessions = _get_cached_recent_sessions(days=days, grade_filter=grade_filter)
 
     if not sessions:
         st.info("暂无面试记录")
         return
 
-    # Session cards
-    for idx, s in enumerate(sessions[:30]):
+    # 使用 Streamlit 原生组件渲染每条记录（支持交互按钮）
+    base_url = os.getenv("APP_BASE_URL", "http://localhost:8501")
+
+    for idx, s in enumerate(sessions[:20]):  # 限制数量
         grade = s.get("grade")
         score = s.get("score")
         is_s = s.get("is_s_tier", False)
+        session_id = s.get("session_id", "")
+        candidate_name = s.get('candidate_name', 'Unknown')
 
-        # Grade badge
+        # Grade badge HTML
         if grade:
             colors = {"S": ("#F59E0B", "#FEF3C7"), "A": ("#10B981", "#ECFDF5"), "B": ("#3B82F6", "#EFF6FF"), "C": ("#EF4444", "#FEF2F2")}
             fg, bg = colors.get(grade, ("#6B7280", "#F3F4F6"))
@@ -695,36 +873,129 @@ def render_history_tab():
         else:
             badge_html = '<span style="background: #F3F4F6; color: #6B7280; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem;">待评估</span>'
 
-        base_url = os.getenv("APP_BASE_URL", "http://localhost:8501")
-        detail_url = f"{base_url}/?session={s.get('session_id', '')}"
         border_color = "#F59E0B" if is_s else "#E2E8F0"
+        detail_url = f"{base_url}/?session={session_id}"
 
-        col1, col2 = st.columns([5, 1])
-        with col1:
-            st.markdown(f"""
-            <div class="glass-card" style="padding: 1rem; border-left: 4px solid {border_color}; margin-bottom: 0.5rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span style="font-weight: 700; font-size: 1rem; color: #0F172A;">{s.get('candidate_name', 'Unknown')}</span>
-                        <span style="color: #64748B; font-size: 0.8rem; margin-left: 0.75rem;">{s.get('candidate_email', '')}</span>
+        # 获取联系方式
+        phone = s.get('candidate_phone', '')
+        email = s.get('candidate_email', '')
+        wechat = s.get('candidate_wechat', '')
+
+        # 构建联系方式HTML（可点击复制，使用SVG图标）
+        contact_items = []
+        if phone:
+            phone_icon = icon("phone", 14, "#0D9488")
+            contact_items.append(f'<span class="contact-item" onclick="navigator.clipboard.writeText(\'{phone}\');this.style.color=\'#059669\';setTimeout(()=>this.style.color=\'#0D9488\',1000)" title="点击复制">{phone_icon} {phone}</span>')
+        if email:
+            mail_icon = icon("mail", 14, "#0D9488")
+            contact_items.append(f'<span class="contact-item" onclick="navigator.clipboard.writeText(\'{email}\');this.style.color=\'#059669\';setTimeout(()=>this.style.color=\'#0D9488\',1000)" title="点击复制">{mail_icon} {email}</span>')
+        if wechat:
+            wechat_icon = icon("wechat", 14, "#0D9488")
+            contact_items.append(f'<span class="contact-item" onclick="navigator.clipboard.writeText(\'{wechat}\');this.style.color=\'#059669\';setTimeout(()=>this.style.color=\'#0D9488\',1000)" title="点击复制">{wechat_icon} {wechat}</span>')
+        contact_html = ' <span style="color:#CBD5E1;">|</span> '.join(contact_items) if contact_items else '<span style="color:#94A3B8;">-</span>'
+
+        # 每条记录一个容器
+        with st.container():
+            # 信息行 + 操作按钮行
+            col_info, col_actions = st.columns([3, 2])
+
+            with col_info:
+                st.markdown(f'''
+                <style>
+                .contact-item {{
+                    color: #0D9488;
+                    cursor: pointer;
+                    transition: color 0.2s;
+                }}
+                .contact-item:hover {{
+                    color: #0F766E;
+                    text-decoration: underline;
+                }}
+                </style>
+                <div style="border-left: 4px solid {border_color}; padding-left: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <span style="font-weight: 700; font-size: 1rem; color: #0F172A;">{candidate_name}</span>
+                        {badge_html}
                     </div>
-                    {badge_html}
+                    <div style="color: #64748B; font-size: 0.75rem; margin-top: 0.25rem;">
+                        {s.get('date', '')} · {s.get('turn_count', 0)} 轮对话
+                    </div>
+                    <div style="font-size: 0.8rem; margin-top: 0.25rem;">
+                        {contact_html}
+                    </div>
                 </div>
-                <div style="color: #64748B; font-size: 0.75rem; margin-top: 0.5rem;">
-                    {s.get('date', '')} · {s.get('turn_count', 0)} 轮对话
-                    <a href="{detail_url}" target="_blank" style="color: #0D9488; margin-left: 1rem; text-decoration: none;">查看详情 →</a>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        with col2:
-            if st.button("删除", key=f"del_{s.get('session_id')}_{idx}"):
-                storage_service.delete_session_by_date_str(s.get('session_id', ''), s.get('date', ''))
-                st.toast("已删除")
+                ''', unsafe_allow_html=True)
+
+            with col_actions:
+                btn_cols = st.columns(4)
+                with btn_cols[0]:
+                    st.link_button("详情", detail_url, use_container_width=True)
+                with btn_cols[1]:
+                    if st.button("JSON", key=f"json_{session_id}", use_container_width=True):
+                        data = storage_service.export_single_session_json(session_id)
+                        if data:
+                            st.session_state._single_export_data = data
+                            st.session_state._single_export_format = "json"
+                            st.session_state._single_export_name = candidate_name
+                            st.rerun()
+                with btn_cols[2]:
+                    if st.button("HTML", key=f"html_{session_id}", use_container_width=True):
+                        data = storage_service.export_single_session_html(session_id)
+                        if data:
+                            st.session_state._single_export_data = data
+                            st.session_state._single_export_format = "html"
+                            st.session_state._single_export_name = candidate_name
+                            st.rerun()
+                with btn_cols[3]:
+                    if st.button("删除", key=f"del_{session_id}", use_container_width=True):
+                        st.session_state._confirm_del_session = session_id
+                        st.session_state._confirm_del_name = candidate_name
+                        st.session_state._confirm_del_date = s.get('date', '')
+
+            # 单条删除确认
+            if st.session_state.get("_confirm_del_session") == session_id:
+                st.warning(f"确定删除 {candidate_name} 的面试记录？")
+                cc1, cc2 = st.columns(2)
+                with cc1:
+                    if st.button("确定删除", key=f"yes_del_{session_id}"):
+                        date_str = st.session_state.get("_confirm_del_date", "")
+                        storage_service.delete_session_by_date_str(session_id, date_str)
+                        st.session_state._confirm_del_session = None
+                        st.session_state._confirm_del_name = None
+                        st.session_state._confirm_del_date = None
+                        _clear_all_caches()
+                        st.toast(f"已删除 {candidate_name}")
+                        st.rerun()
+                with cc2:
+                    if st.button("取消", key=f"no_del_{session_id}"):
+                        st.session_state._confirm_del_session = None
+                        st.session_state._confirm_del_name = None
+                        st.session_state._confirm_del_date = None
+                        st.rerun()
+
+            st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
+
+    # 单条记录下载按钮（点击记录上的导出按钮后显示）
+    if st.session_state.get("_single_export_data"):
+        st.markdown("---")
+        fmt = st.session_state.get("_single_export_format", "json")
+        name = st.session_state.get("_single_export_name", "interview")
+        col_dl, col_close = st.columns([3, 1])
+        with col_dl:
+            if fmt == "json":
+                st.download_button(f"⬇ 下载 {name}.json", st.session_state._single_export_data, f"{name}_interview.json", "application/json", use_container_width=True)
+            else:
+                st.download_button(f"⬇ 下载 {name}.html", st.session_state._single_export_data, f"{name}_interview.html", "text/html", use_container_width=True)
+        with col_close:
+            if st.button("关闭", key="close_single_download", use_container_width=True):
+                st.session_state._single_export_data = None
+                st.session_state._single_export_format = None
+                st.session_state._single_export_name = None
                 st.rerun()
 
     # Clear all
+    st.markdown("---")
     if total > 0:
-        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("清空所有记录", use_container_width=True):
             st.session_state._confirm_clear = True
 
@@ -733,8 +1004,9 @@ def render_history_tab():
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("确定清空", key="yes_clear"):
-                    storage_service.clear_all_sessions(days=7)
+                    storage_service.clear_all_sessions(days=30)
                     st.session_state._confirm_clear = False
+                    _clear_all_caches()
                     st.toast("已清空")
                     st.rerun()
             with c2:
@@ -815,28 +1087,60 @@ def render_admin_dashboard():
     render_header()
     render_metrics()
 
+    # 使用指南（折叠）
+    with st.expander("使用指南（必看）", expanded=False):
+        st.markdown("""
+<div style="font-size: 0.9rem; color: #334155; line-height: 1.8;">
+
+**快速开始：**
+1. 在「设置」页填写公司背景信息（首次使用）
+2. 在「岗位配置」页配置岗位信息和JD
+3. 填写 HR 微信号（必填，用于 S 级人才邀请）
+4. 点击「生成面试链接」
+5. 将链接发送给候选人
+
+**字段说明：**
+- **岗位描述**：技术要求、职责等 JD 内容
+- **自定义开场白**：留空则 AI 自动生成
+- **HR 微信号**：S 级人才收到的邀请微信
+- **AI Prompt**：和岗位绑定在一起，每个岗位可以单独配置
+- **飞书 Webhook**：面试结束后发送通知
+- **测试模式**：输入 /stop 快速结束面试
+
+</div>
+        """, unsafe_allow_html=True)
+
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Tab navigation with icons
-    tab1, tab2, tab3 = st.tabs(["岗位配置", "面试历史", "设置"])
+    # 使用 radio 替代 tabs，通过 key 自动保持状态
+    selected_tab = st.radio(
+        "导航",
+        ["岗位配置", "面试历史", "设置"],
+        horizontal=True,
+        key="_current_tab",
+        label_visibility="collapsed"
+    )
 
-    with tab1:
+    st.markdown("---")
+
+    if selected_tab == "岗位配置":
         render_job_config_tab()
-
-    with tab2:
+    elif selected_tab == "面试历史":
         render_history_tab()
-
-    with tab3:
+    else:
         render_settings_tab()
 
 
 def init_admin_dashboard_state():
     """Initialize dashboard session state"""
+    from core.prompts import INTERVIEWER_PROMPT
     defaults = {
         "job_description": "",
         "job_title": "",
         "custom_greeting": "",
-        "s_tier_invitation": "请直接添加 CTO 微信：VoiCTO",
+        "custom_prompt": INTERVIEWER_PROMPT,
+        "hr_wechat": "",
+        "s_tier_invitation": "恭喜您通过面试！请添加以下微信进行后续沟通",
         "s_tier_link": "",
         "feishu_webhook": "",
         "current_config_id": None,
@@ -844,6 +1148,16 @@ def init_admin_dashboard_state():
         "_last_config": None,
         "_confirm_del": None,
         "_confirm_clear": None,
+        "_show_export_dialog": False,
+        "_batch_export_data": None,
+        "_batch_export_format": None,
+        "_batch_export_date": None,
+        "_single_export_data": None,
+        "_single_export_format": None,
+        "_single_export_name": None,
+        "_confirm_del_session": None,
+        "_confirm_del_name": None,
+        "_confirm_del_date": None,
         "test_mode": False,
     }
     for k, v in defaults.items():
