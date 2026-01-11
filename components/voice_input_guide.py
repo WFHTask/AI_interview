@@ -330,7 +330,7 @@ VOICE_INPUT_CSS = """
                 }
 
                 // Allow delete operations
-                const deleteTypes = [
+                const allowedTypes = [
                     'deleteByCut',
                     'deleteContentBackward',
                     'deleteContentForward',
@@ -339,10 +339,12 @@ VOICE_INPUT_CSS = """
                     'insertLineBreak',
                     'insertParagraph',
                     'historyUndo',
-                    'historyRedo'
+                    'historyRedo',
+                    'insertFromPaste',
+                    'insertFromDrop'
                 ];
 
-                if (e.inputType && deleteTypes.includes(e.inputType)) {
+                if (e.inputType && allowedTypes.includes(e.inputType)) {
                     s.lastValidValue = textarea.value;
                     return;
                 }
@@ -352,13 +354,17 @@ VOICE_INPUT_CSS = """
                     return;
                 }
 
-                // Check for unauthorized input
+                // Check for unauthorized input (including no inputType)
                 if (e.inputType === 'insertText' ||
                     e.inputType === 'insertCompositionText' ||
                     e.inputType === 'insertReplacementText' ||
-                    (e.inputType && !deleteTypes.includes(e.inputType) && e.inputType.startsWith('insert'))) {
-                    // Revert to last valid value
-                    textarea.value = s.lastValidValue;
+                    !e.inputType ||
+                    (e.inputType && !allowedTypes.includes(e.inputType) && e.inputType.startsWith('insert'))) {
+                    // Revert if new chars were added
+                    if (textarea.value.length > s.lastValidValue.length) {
+                        textarea.value = s.lastValidValue;
+                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
                     return;
                 }
 
@@ -449,269 +455,185 @@ def inject_voice_only_mode():
     """, unsafe_allow_html=True)
 
     # Inject JavaScript via components.html (bypasses CSP restrictions)
+    # Simple and bulletproof approach: block ALL keypress, only allow Ctrl+V/Cmd+V
     components.html("""
 <script>
-// Comprehensive keyboard blocking for voice-only input mode
-// Strategy: Only allow paste operations, block everything else including IME
 (function() {
-    // Target the parent window (Streamlit's main frame)
     const targetDoc = window.parent.document;
 
-    // Global state per textarea (using WeakMap to avoid memory leaks)
-    const textareaStates = new WeakMap();
-
-    function getState(textarea) {
-        if (!textareaStates.has(textarea)) {
-            textareaStates.set(textarea, {
-                lastValidValue: textarea.value || '',
-                isPasting: false,
-                isComposing: false,
-                valueBeforeComposition: ''
-            });
-        }
-        return textareaStates.get(textarea);
-    }
-
-    function isAllowedKey(e) {
-        // Navigation and control keys
-        const allowedKeys = [
-            'Backspace', 'Delete',
-            'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-            'Enter', 'Tab', 'Escape',
-            'Home', 'End', 'PageUp', 'PageDown'
-        ];
-
-        if (allowedKeys.includes(e.key)) {
-            return true;
-        }
-
-        // Allow Ctrl/Cmd combinations for paste, copy, select all, cut, undo
-        const isCtrlCmd = e.ctrlKey || e.metaKey;
-        const allowedWithCtrl = ['v', 'V', 'a', 'A', 'c', 'C', 'x', 'X', 'z', 'Z'];
-
-        if (isCtrlCmd && allowedWithCtrl.includes(e.key)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    function setupVoiceOnlyInput() {
-        // Try multiple selectors for different Streamlit versions
+    function setupPasteOnly() {
         const selectors = [
             '[data-testid="stChatInput"] textarea',
             '[data-testid="stChatInputTextArea"] textarea',
             '.stChatInput textarea',
-            'textarea[data-testid="stChatInputTextArea"]',
-            '.stChatFloatingInputContainer textarea',
-            'form textarea'
+            '.stChatFloatingInputContainer textarea'
         ];
 
         let textareas = [];
         for (const selector of selectors) {
             const found = targetDoc.querySelectorAll(selector);
             if (found.length > 0) {
-                textareas = found;
+                textareas = Array.from(found);
                 break;
             }
         }
 
-        if (textareas.length === 0) {
-            // Fallback: find any textarea that looks like a chat input
-            textareas = targetDoc.querySelectorAll('textarea');
-        }
-
         textareas.forEach(function(textarea) {
-            if (textarea.dataset.voiceOnlySetup === 'v4') return;
-            textarea.dataset.voiceOnlySetup = 'v4';
+            if (textarea.dataset.pasteOnlyV6) return;
+            textarea.dataset.pasteOnlyV6 = 'true';
 
-            const state = getState(textarea);
-            state.lastValidValue = textarea.value || '';
+            // State tracking
+            let lastValue = textarea.value || '';
+            let isPasting = false;
 
-            // === PASTE EVENT: Mark as pasting ===
-            textarea.addEventListener('paste', function(e) {
-                const s = getState(textarea);
-                s.isPasting = true;
+            // Track paste operations
+            textarea.addEventListener('paste', function() {
+                isPasting = true;
                 setTimeout(() => {
-                    s.isPasting = false;
-                    s.lastValidValue = textarea.value;
-                }, 200);
+                    isPasting = false;
+                    lastValue = textarea.value;
+                }, 300);
             }, true);
 
-            // === COMPOSITION EVENTS: Handle IME input ===
-            textarea.addEventListener('compositionstart', function(e) {
-                const s = getState(textarea);
-                s.isComposing = true;
-                s.valueBeforeComposition = textarea.value;
-            }, true);
-
-            textarea.addEventListener('compositionend', function(e) {
-                const s = getState(textarea);
-                s.isComposing = false;
-                // Revert IME input - restore to value before composition
-                if (!s.isPasting) {
-                    textarea.value = s.valueBeforeComposition;
-                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-            }, true);
-
-            // === KEYDOWN: Block most keys ===
+            // Block ALL keydown except: navigation, Ctrl+V/Cmd+V, Enter, Backspace, Delete
             textarea.addEventListener('keydown', function(e) {
-                const s = getState(textarea);
+                const isCtrlCmd = e.ctrlKey || e.metaKey;
 
-                if (s.isPasting) return;
-
-                // Block IME trigger keys
-                if (e.key === 'Process' || e.keyCode === 229) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return false;
+                // Allow Ctrl/Cmd + V (paste)
+                if (isCtrlCmd && (e.key === 'v' || e.key === 'V')) {
+                    return true;
                 }
 
-                if (!isAllowedKey(e)) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return false;
+                // Allow Ctrl/Cmd + A (select all), C (copy), X (cut), Z (undo)
+                if (isCtrlCmd && ['a', 'A', 'c', 'C', 'x', 'X', 'z', 'Z'].includes(e.key)) {
+                    return true;
                 }
+
+                // Allow navigation and editing keys
+                const allowedKeys = [
+                    'Backspace', 'Delete', 'Enter', 'Tab', 'Escape',
+                    'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+                    'Home', 'End', 'PageUp', 'PageDown'
+                ];
+                if (allowedKeys.includes(e.key)) {
+                    return true;
+                }
+
+                // Block everything else (including IME Process key)
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
             }, true);
 
-            // === KEYPRESS: Block character input ===
+            // Block keypress completely (catches remaining character input)
             textarea.addEventListener('keypress', function(e) {
-                const s = getState(textarea);
-                if (s.isPasting) return;
+                // Only allow Enter
+                if (e.key === 'Enter') return true;
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }, true);
 
-                if (e.key !== 'Enter') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return false;
+            // Handle IME composition - revert when composition ends
+            textarea.addEventListener('compositionend', function(e) {
+                if (!isPasting) {
+                    // Revert to value before IME input
+                    setTimeout(() => {
+                        if (!isPasting && textarea.value !== lastValue && textarea.value.length > lastValue.length) {
+                            textarea.value = lastValue;
+                            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    }, 10);
                 }
             }, true);
 
-            // === BEFOREINPUT: Block before input happens ===
+            // Block beforeinput for non-paste insertions
             textarea.addEventListener('beforeinput', function(e) {
-                const s = getState(textarea);
-
-                // Allow paste operations
+                // Allow paste and drop
                 if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') {
-                    s.isPasting = true;
+                    isPasting = true;
                     setTimeout(() => {
-                        s.isPasting = false;
-                        s.lastValidValue = textarea.value;
-                    }, 200);
-                    return;
+                        isPasting = false;
+                        lastValue = textarea.value;
+                    }, 300);
+                    return true;
                 }
 
                 // Allow delete operations
-                const deleteTypes = [
-                    'deleteByCut', 'deleteContentBackward', 'deleteContentForward',
-                    'deleteWordBackward', 'deleteWordForward',
-                    'deleteSoftLineBackward', 'deleteSoftLineForward',
-                    'deleteHardLineBackward', 'deleteHardLineForward'
-                ];
-                if (deleteTypes.includes(e.inputType)) return;
+                if (e.inputType && e.inputType.startsWith('delete')) {
+                    return true;
+                }
 
-                // Allow line breaks and history
-                const allowedTypes = ['insertLineBreak', 'insertParagraph', 'historyUndo', 'historyRedo'];
-                if (allowedTypes.includes(e.inputType)) return;
+                // Allow line breaks, history
+                const allowed = ['insertLineBreak', 'insertParagraph', 'historyUndo', 'historyRedo'];
+                if (allowed.includes(e.inputType)) {
+                    return true;
+                }
 
                 // Block all text insertion (including IME)
-                if (e.inputType === 'insertText' ||
-                    e.inputType === 'insertCompositionText' ||
-                    e.inputType === 'insertReplacementText') {
+                if (e.inputType && e.inputType.startsWith('insert')) {
                     e.preventDefault();
                     e.stopPropagation();
                     return false;
                 }
             }, true);
 
-            // === INPUT: Final safety net ===
+            // Final safety: revert any unauthorized changes in input event
             textarea.addEventListener('input', function(e) {
-                const s = getState(textarea);
-
-                if (s.isPasting) {
-                    s.lastValidValue = textarea.value;
+                if (isPasting) {
+                    lastValue = textarea.value;
                     return;
                 }
 
+                // Allow deletions and line breaks
                 const allowedTypes = [
-                    'deleteByCut', 'deleteContentBackward', 'deleteContentForward',
-                    'deleteWordBackward', 'deleteWordForward',
-                    'insertLineBreak', 'insertParagraph', 'historyUndo', 'historyRedo',
+                    'deleteContentBackward', 'deleteContentForward',
+                    'deleteByCut', 'deleteWordBackward', 'deleteWordForward',
+                    'insertLineBreak', 'insertParagraph',
+                    'historyUndo', 'historyRedo',
                     'insertFromPaste', 'insertFromDrop'
                 ];
 
                 if (e.inputType && allowedTypes.includes(e.inputType)) {
-                    s.lastValidValue = textarea.value;
+                    lastValue = textarea.value;
                     return;
                 }
 
-                if (s.isComposing) return;
-
-                // Revert unauthorized input
-                if (e.inputType === 'insertText' ||
-                    e.inputType === 'insertCompositionText' ||
-                    e.inputType === 'insertReplacementText') {
-                    textarea.value = s.lastValidValue;
-                    return;
+                // Revert if chars were added (not by paste)
+                if (textarea.value.length > lastValue.length) {
+                    textarea.value = lastValue;
                 }
-
-                s.lastValidValue = textarea.value;
             }, true);
 
-            // === FOCUS: Reset state ===
+            // Update lastValue on focus
             textarea.addEventListener('focus', function() {
-                const s = getState(textarea);
-                s.lastValidValue = textarea.value;
-                s.isPasting = false;
-                s.isComposing = false;
+                lastValue = textarea.value;
+                isPasting = false;
             });
 
-            // === BLUR: Force revert any pending IME input ===
+            // Double-check on blur
             textarea.addEventListener('blur', function() {
-                const s = getState(textarea);
-                // If there was uncommitted composition, revert
-                if (s.isComposing || textarea.value !== s.lastValidValue) {
-                    if (!s.isPasting) {
-                        textarea.value = s.lastValidValue;
-                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                    }
-                }
-                s.isComposing = false;
-            });
-
-            // === FOCUSOUT: Double check on focus out ===
-            textarea.addEventListener('focusout', function() {
-                const s = getState(textarea);
-                if (!s.isPasting && textarea.value !== s.lastValidValue) {
-                    textarea.value = s.lastValidValue;
-                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                if (!isPasting && textarea.value.length > lastValue.length) {
+                    textarea.value = lastValue;
                 }
             });
 
-            console.log('[VoiVerse] Voice-only mode enabled for textarea');
+            console.log('[VoiVerse] Paste-only mode v6 enabled');
         });
     }
 
     // Run setup
-    setupVoiceOnlyInput();
+    setupPasteOnly();
 
     // MutationObserver for dynamic content
     const observer = new MutationObserver(function() {
-        clearTimeout(window.voiceOnlyDebounce);
-        window.voiceOnlyDebounce = setTimeout(setupVoiceOnlyInput, 100);
+        clearTimeout(window._pasteOnlyTimer);
+        window._pasteOnlyTimer = setTimeout(setupPasteOnly, 100);
     });
-
     observer.observe(targetDoc.body, { childList: true, subtree: true });
 
     // Periodic check as backup
-    setInterval(setupVoiceOnlyInput, 1000);
-
-    // Run on visibility change
-    targetDoc.addEventListener('visibilitychange', function() {
-        if (!targetDoc.hidden) setupVoiceOnlyInput();
-    });
-
-    console.log('[VoiVerse] Voice-only input blocking initialized');
+    setInterval(setupPasteOnly, 2000);
 })();
 </script>
     """, height=0, width=0)
